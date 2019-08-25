@@ -1,4 +1,4 @@
-module Main exposing (..)
+module Main exposing (main)
 
 import Browser
 import Element exposing (Element, centerY, el, fill, height, padding, px, rgb255, text, width)
@@ -7,6 +7,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
+import Html.Attributes exposing (attribute)
 import Time
 
 
@@ -77,7 +78,16 @@ renderer model =
         , Font.color (rgb255 255 255 255)
         , padding 30
         ]
-        (text (Debug.toString model))
+        (Element.html (customRenderer model))
+
+
+customRenderer : Slider -> Html msg
+customRenderer s =
+    Html.node "custom-renderer"
+        [ attribute "value" (String.fromInt s.current)
+        , attribute "trigger-compute" (String.fromInt s.max)
+        ]
+        []
 
 
 slider : Slider -> Element Msg
