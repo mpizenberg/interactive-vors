@@ -74,8 +74,7 @@ renderer model =
     el
         [ width fill
         , height fill
-        , Background.color (rgb255 240 0 245)
-        , Font.color (rgb255 255 255 255)
+        , Background.color (rgb255 255 220 255)
         , padding 30
         ]
         (Element.html (customRenderer model))

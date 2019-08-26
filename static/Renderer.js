@@ -18,12 +18,13 @@ class Renderer extends HTMLElement {
 	attributeChangedCallback(name, oldValue, newValue) {
 		switch (name) {
 			case 'value':
-				console.log(`Value changed from ${oldValue} to ${newValue}`);
+				if (newValue === oldValue) break;
+				console.log(`value changed from ${oldValue} to ${newValue}`);
 				this.value = +newValue;
 				this.updateContent();
 				break;
 			case 'trigger-compute':
-				console.log(`Asking for computation!`);
+				console.log(`trigger-compute changed from ${oldValue} to ${newValue}`);
 				this.max += 1;
 				this.updateContent();
 				break;
