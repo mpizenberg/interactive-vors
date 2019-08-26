@@ -1,0 +1,27 @@
+[package]
+name = "wasm-vors"
+version = "0.1.0"
+authors = ["Matthieu Pizenberg <matthieu.pizenberg@gmail.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+tar = "0.4.23"
+visual-odometry-rs = { path = "/home/matthieu/git/phd/visual-odometry-rs" }
+png = "0.14"
+byteorder = "1.2" # Reading numbers in [big/little]-endian.
+nalgebra = "0.17" # Linear algebra.
+image = "0.21" # Encoding/decoding images in Rust.
+png-decoder = { path = "/home/matthieu/git/perso/png-decoder" }
+
+[dependencies.web-sys]
+version = "0.3.4"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+# opt-level = "s"
+opt-level = 3
+lto = true
