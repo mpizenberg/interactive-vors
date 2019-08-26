@@ -4,17 +4,14 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width">
 		<title>Interactive vors</title>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/107/three.min.js" charset="utf-8"></script>
-		<script src="OrbitControls.js" charset="utf-8"></script>
-		<script type="module" src="Renderer.js"></script>
-		<script src="Elm.js"></script>
+		<script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/107/three.min.js" charset="utf-8"></script>
+		<script defer src="OrbitControls.js" charset="utf-8"></script>
+		<script defer type="module" src="Renderer.js" charset="utf-8"></script>
+		<script defer src="Elm.js" charset="utf-8"></script>
+		<script defer type="module" src="ports.js" charset="utf-8"></script>
+		<script defer type="module" src="main.js" charset="utf-8"></script>
 	</head>
 	<body>
 		<div id=elm></div>
-		<script charset="utf-8">
-			var app = Elm.Main.init({
-				node: document.getElementById('elm')
-			});
-		</script>
 	</body>
 </html>

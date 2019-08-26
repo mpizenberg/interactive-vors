@@ -140,7 +140,7 @@ fn create_camera(camera_id: &str) -> Result<Intrinsics, String> {
 }
 
 /// Open an association file (in bytes form) and parse it into a vector of Association.
-fn parse_associations_buf(buffer: &[u8]) -> Result<Vec<tum_rgbd::Association>, Box<Error>> {
+fn parse_associations_buf(buffer: &[u8]) -> Result<Vec<tum_rgbd::Association>, Box<dyn Error>> {
     let mut content = String::new();
     let mut slice = buffer;
     slice.read_to_string(&mut content)?;
@@ -222,7 +222,7 @@ fn _read_png_16bits_buf<R: Read>(r: R) -> Result<(usize, usize, Vec<u16>), png::
     Ok((info.width as usize, info.height as usize, buffer_u16))
 }
 
-fn _png_decode_u16(input: &[u8]) -> Result<(usize, usize, Vec<u16>), Box<Error>> {
+fn _png_decode_u16(input: &[u8]) -> Result<(usize, usize, Vec<u16>), Box<dyn Error>> {
     let png_img = png_me::decode_no_check(input)?;
     let mut buffer_u16 = vec![0; png_img.width * png_img.height];
     let mut buffer_cursor = Cursor::new(&png_img.data);

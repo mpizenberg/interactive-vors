@@ -1,24 +1,33 @@
 module Main exposing (main)
 
 import Browser
-import Element exposing (Element, centerY, el, fill, height, padding, px, rgb255, text, width)
+import Element exposing (Element, centerY, el, fill, height, padding, px, rgb255, width)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes exposing (attribute)
+import Icon
+import Json.Encode exposing (Value)
+import Packages.FileInput as FileInput
+import Ports
+import Style
 import Time
 
 
-main : Program () Slider Msg
+main : Program () State Msg
 main =
     Browser.element
-        { init = \() -> ( initialModel, Cmd.none )
+        { init = \() -> ( Initial, Cmd.none )
         , view = view
         , update = update
         , subscriptions = subscriptions
         }
+
+
+type State
+    = Initial
+    | DatasetLoaded Slider
 
 
 type alias Slider =
@@ -28,8 +37,8 @@ type alias Slider =
     }
 
 
-initialModel : Slider
-initialModel =
+initialSlider : Slider
+initialSlider =
     { min = 0
     , max = 1
     , current = 0
@@ -39,34 +48,55 @@ initialModel =
 type Msg
     = IncrementMax
     | Pick Float
+    | LoadDataset Value
+    | DatasetLoadedMsg Int
 
 
-update : Msg -> Slider -> ( Slider, Cmd Msg )
+update : Msg -> State -> ( State, Cmd Msg )
 update msg model =
-    case msg of
-        IncrementMax ->
-            ( { model | max = model.max + 1 }, Cmd.none )
+    case ( msg, model ) of
+        ( LoadDataset jsValue, Initial ) ->
+            ( model, Ports.loadDataset jsValue )
 
-        Pick value ->
-            ( { model | current = round value }, Cmd.none )
+        ( DatasetLoadedMsg nb_frames, Initial ) ->
+            ( DatasetLoaded initialSlider, Cmd.none )
+
+        ( IncrementMax, DatasetLoaded slid ) ->
+            ( DatasetLoaded { slid | max = slid.max + 1 }, Cmd.none )
+
+        ( Pick value, DatasetLoaded slid ) ->
+            ( DatasetLoaded { slid | current = round value }, Cmd.none )
+
+        _ ->
+            ( model, Cmd.none )
 
 
-subscriptions : Slider -> Sub Msg
-subscriptions _ =
-    Time.every 1000 (always IncrementMax)
+subscriptions : State -> Sub Msg
+subscriptions state =
+    case state of
+        Initial ->
+            Ports.datasetLoaded DatasetLoadedMsg
+
+        DatasetLoaded _ ->
+            Time.every 1000 (always IncrementMax)
 
 
-view : Slider -> Html Msg
+view : State -> Html Msg
 view model =
     Element.layout [] (appLayout model)
 
 
-appLayout : Slider -> Element Msg
+appLayout : State -> Element Msg
 appLayout model =
-    Element.column [ width fill, height fill ]
-        [ renderer model
-        , el [ width fill, height (px 50), Element.paddingXY 10 0 ] (slider model)
-        ]
+    case model of
+        Initial ->
+            loadDatasetButton LoadDataset
+
+        DatasetLoaded slid ->
+            Element.column [ width fill, height fill ]
+                [ renderer slid
+                , el [ width fill, height (px 50), Element.paddingXY 10 0 ] (slider slid)
+                ]
 
 
 renderer : Slider -> Element msg
@@ -115,3 +145,47 @@ slider s =
         , thumb = Input.defaultThumb
         , step = Just 1
         }
+
+
+loadDatasetButton : (Value -> msg) -> Element msg
+loadDatasetButton loadDatasetMsg =
+    let
+        uniqueId =
+            "load-dataset"
+
+        icon =
+            [ Icon.toHtml 60 Icon.settings ]
+                |> Html.label (iconLabelAttributes uniqueId)
+                |> Element.html
+                |> Element.el
+                    [ Element.mouseOver [ Background.color Style.hoveredItemBG ]
+                    , Element.htmlAttribute (Html.Attributes.title "Load dataset archive")
+                    ]
+
+        invisibleInput =
+            FileInput.invisible
+                { id = uniqueId
+                , accept = ".tar"
+                , quantity = FileInput.SingleWith loadDatasetMsg
+                }
+    in
+    Element.row [] [ icon, Element.html invisibleInput ]
+
+
+iconLabelAttributes : String -> List (Html.Attribute msg)
+iconLabelAttributes uniqueId =
+    -- need to manually add a cursor because the class given by elm-ui
+    -- gets overwritten by user agent stylesheet for a label
+    Html.Attributes.for uniqueId
+        :: Html.Attributes.style "cursor" "pointer"
+        :: centerFlexAttributes
+
+
+centerFlexAttributes : List (Html.Attribute msg)
+centerFlexAttributes =
+    [ Html.Attributes.style "width" "100px"
+    , Html.Attributes.style "height" "100px"
+    , Html.Attributes.style "display" "flex"
+    , Html.Attributes.style "align-items" "center"
+    , Html.Attributes.style "justify-content" "center"
+    ]

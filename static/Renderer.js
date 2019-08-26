@@ -2,18 +2,20 @@ import { PointCloud, WasmTracker, default as init } from "./wasm-pkg/wasm_vors.j
 
 // WASM stuff ##################################################################
 
-let wasm;
-let camera;
-let scene;
-let controls;
-let point_cloud;
-let geometry;
-let renderer;
-let pos_buffer_attr;
-let col_buffer_attr;
+export let wasm;
+export let wasm_tracker;
+export let camera;
+export let scene;
+export let controls;
+export let point_cloud;
+export let geometry;
+export let renderer;
+export let pos_buffer_attr;
+export let col_buffer_attr;
 
-let nb_particles = 1000000;
-let end_valid = 0;
+export let nb_particles = 1000000;
+export let end_valid = 0;
+export let set_end_valid = (n) => end_valid = n;
 
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
@@ -31,7 +33,7 @@ load_wasm();
 async function load_wasm() {
 	// Initialize the wasm module.
 	wasm = await init("./wasm-pkg/wasm_vors_bg.wasm");
-	const wasm_tracker = WasmTracker.new();
+	wasm_tracker = WasmTracker.new();
 	point_cloud = PointCloud.new(nb_particles);
 
 	// Bind geometry to THREE buffers.
@@ -51,22 +53,6 @@ async function load_wasm() {
 	// renderer.render(scene, camera);
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.update();
-
-	// // Transfer archive data to wasm when the file is loaded.
-	// file_reader.onload = () => {
-	// 	console.log("Transfering tar data to wasm memory ...");
-	// 	transferContent(file_reader.result, wasm_tracker, wasm);
-	// 	console.log("Initializing tracker with first image ...");
-	// 	const nb_frames = wasm_tracker.init("icl");
-	// 	console.log("Rendering first frame point cloud ...");
-	// 	let start_valid = end_valid;
-	// 	end_valid = point_cloud.tick(wasm_tracker);
-	// 	updateGeometry(start_valid, end_valid);
-	// 	renderer.render(scene, camera);
-	// 	console.log("Starting animation frame loop ...");
-	// 	window.requestAnimationFrame(() => track(wasm_tracker, 1, nb_frames));
-	// 	file_reader = null; // Free memory.
-	// };
 }
 
 function getPosMemBuffer() {
@@ -77,19 +63,7 @@ function getColMemBuffer() {
 	return new Float32Array(wasm.memory.buffer, point_cloud.colors(), 3 * nb_particles);
 }
 
-// Transfer archive data to wasm when the file is loaded.
-function transferContent(arrayBuffer, wasm_tracker, wasm) {
-	wasm_tracker.allocate(arrayBuffer.byteLength);
-	const wasm_buffer = new Uint8Array(wasm.memory.buffer);
-	const start = wasm_tracker.memory_pos();
-	let file_buffer = new Uint8Array(arrayBuffer);
-	wasm_buffer.set(file_buffer, start);
-	file_buffer = null; arrayBuffer = null; // Free memory.
-	console.log("Building entries hash map ...");
-	wasm_tracker.build_entries_map();
-}
-
-function track(wasm_tracker, frame_id, nb_frames) {
+export function track(wasm_tracker, frame_id, nb_frames) {
 	if (frame_id < nb_frames) {
 		const frame_pose = wasm_tracker.track(frame_id);
 		console.log(frame_pose);
@@ -104,7 +78,7 @@ function track(wasm_tracker, frame_id, nb_frames) {
 	// );
 }
 
-function updateGeometry(start_valid, end_valid) {
+export function updateGeometry(start_valid, end_valid) {
 	let nb_update = end_valid - start_valid;
 	if (nb_update > 0) {
 		geometry.setDrawRange(0, end_valid);
