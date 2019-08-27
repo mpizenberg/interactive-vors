@@ -21,9 +21,6 @@ export let set_end_valid = (n) => end_valid = n;
 
 // Current frame point cloud.
 export let current_geometry;
-export let current_start = 0;
-export let current_end = 0;
-export let set_current_end = (n) => current_end = n;
 
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
@@ -33,9 +30,9 @@ scene.background = new THREE.Color( 0x050505 );
 
 // Perpare visualization.
 geometry = new THREE.BufferGeometry();
-geometry.setDrawRange(0, end_valid);
+geometry.setDrawRange(0, end_valid / 3);
 current_geometry = new THREE.BufferGeometry();
-current_geometry.setDrawRange(current_start, current_end);
+current_geometry.setDrawRange(0, 0);
 
 // Run Forest!
 load_wasm();
@@ -57,7 +54,7 @@ async function load_wasm() {
 
 	// Add a second point cloud for current frame.
 	current_geometry.addAttribute("position", pos_buffer_attr);
-	let current_material = new THREE.PointsMaterial({size: 0.05, color: 0xff0000});
+	let current_material = new THREE.PointsMaterial({size: 0.03, color: 0xff0000});
 	let current_particles = new THREE.Points(current_geometry, current_material);
 	current_particles.frustumCulled = false;
 	scene.add(current_particles);
@@ -77,7 +74,8 @@ export function getPosMemBuffer(point_cloud, nb_particles) {
 
 function updateCurrentPointCloud(frame) {
 	let section = point_cloud.section(frame);
-	current_geometry.setDrawRange(section.start, section.end);
+	console.log(`section: ${section.start}-${section.end}`);
+	current_geometry.setDrawRange(section.start / 3, section.end / 3);
 }
 
 function renderLoop() {
@@ -97,7 +95,7 @@ function trackFrame(frame_id, nb_frames) {
 		console.log(frame_pose);
 		let start_update = end_valid;
 		end_valid = point_cloud.tick(wasm_tracker);
-		geometry.setDrawRange(0, end_valid);
+		geometry.setDrawRange(0, end_valid / 3);
 		updateGeometry(start_update, end_valid);
 	}
 }
@@ -162,8 +160,6 @@ class Renderer extends HTMLElement {
 			case 'current':
 				if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
-				console.log(`value changed from ${oldValue} to ${newValue}`);
-				console.log("TODO: change points color of current frame");
 				this.current = +newValue;
 				updateCurrentPointCloud(this.current);
 				break;

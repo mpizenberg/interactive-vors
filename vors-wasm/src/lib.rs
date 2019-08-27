@@ -241,8 +241,8 @@ pub struct PointCloud {
 
 #[wasm_bindgen]
 pub struct Section {
-    start: usize,
-    end: usize,
+    pub start: usize,
+    pub end: usize,
 }
 
 /// Public methods, exported to JavaScript.
