@@ -34,7 +34,7 @@ pub struct WasmTracker {
     entries: HashMap<String, FileEntry>,
     associations: Vec<tum_rgbd::Association>,
     tracker: Option<track::Tracker>,
-    change_keyframe: bool,
+    pub change_keyframe: bool,
 }
 
 /// Public methods, exported to JavaScript.
@@ -234,17 +234,34 @@ fn _png_decode_u16(input: &[u8]) -> Result<(usize, usize, Vec<u16>), Box<dyn Err
 
 #[wasm_bindgen]
 pub struct PointCloud {
+    sections: Vec<(usize, usize)>,
     end: usize,
     points: Vec<f32>,
+}
+
+#[wasm_bindgen]
+pub struct Section {
+    start: usize,
+    end: usize,
 }
 
 /// Public methods, exported to JavaScript.
 #[wasm_bindgen]
 impl PointCloud {
     pub fn new(nb_points: usize) -> PointCloud {
+        let sections = vec![];
         let points = vec![0.0; 3 * nb_points];
         console_log!("PointCloud initialized");
-        PointCloud { end: 0, points }
+        PointCloud {
+            sections,
+            end: 0,
+            points,
+        }
+    }
+
+    pub fn section(&self, frame: usize) -> Section {
+        let (start, end) = self.sections[frame];
+        Section { start, end }
     }
 
     pub fn points(&self) -> *const f32 {
@@ -262,6 +279,7 @@ impl PointCloud {
                 .map(|t| t.points_3d())
                 .expect("tracker");
             self.end = start + 3 * points_3d.len();
+            self.sections.push((start, self.end));
             let points = &mut self.points[start..self.end];
             points
                 .chunks_mut(3)

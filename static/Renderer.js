@@ -8,6 +8,8 @@ export let camera;
 export let scene;
 export let controls;
 export let renderer;
+export let nb_frames = 0;
+export let last_tracked_frame = 0;
 
 // Full geometry point cloud.
 export let point_cloud;
@@ -73,10 +75,20 @@ export function getPosMemBuffer(point_cloud, nb_particles) {
 	return new Float32Array(wasm.memory.buffer, point_cloud.points(), 3 * nb_particles);
 }
 
+function updateCurrentPointCloud(frame) {
+	let section = point_cloud.section(frame);
+	current_geometry.setDrawRange(section.start, section.end);
+}
+
 function renderLoop() {
 	controls.update();
 	renderer.render(scene, camera);
 	window.requestAnimationFrame(renderLoop);
+}
+
+export function track() {
+	trackFrame(last_tracked_frame, nb_frames);
+	last_tracked_frame += 1;
 }
 
 function trackFrame(frame_id, nb_frames) {
@@ -122,14 +134,13 @@ class Renderer extends HTMLElement {
 		this.height = 0;
 		this.max = 0;
 		this.current = 0;
-		this.nb_frames = 0;
 		this.attachShadow({ mode: 'open' });
 		this.shadowRoot.appendChild(renderer.domElement);
 		renderLoop();
 	}
 
 	static get observedAttributes() {
-		return ['width', 'height', 'current', 'trigger-compute', 'nb-frames'];
+		return ['width', 'height', 'current', 'nb-frames'];
 	}
 
 	attributeChangedCallback(name, oldValue, newValue) {
@@ -146,7 +157,7 @@ class Renderer extends HTMLElement {
 				break;
 			case 'nb-frames':
 				if (newValue === oldValue) break;
-				this.nb_frames = +newValue;
+				nb_frames = +newValue;
 				break;
 			case 'current':
 				if (oldValue == null) break; // Do not trigger at initialization.
@@ -154,12 +165,7 @@ class Renderer extends HTMLElement {
 				console.log(`value changed from ${oldValue} to ${newValue}`);
 				console.log("TODO: change points color of current frame");
 				this.current = +newValue;
-				break;
-			case 'trigger-compute':
-				if (oldValue == null) break; // Do not trigger at initialization.
-				if (newValue === oldValue) break; // Do not accidentally trigger.
-				this.max += 1;
-				trackFrame(this.max, this.nb_frames);
+				updateCurrentPointCloud(this.current);
 				break;
 		}
 	}

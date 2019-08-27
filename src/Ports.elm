@@ -6,7 +6,9 @@
 port module Ports exposing
     ( datasetLoaded
     , loadDataset
+    , newKeyFrame
     , resizes
+    , track
     )
 
 import Json.Encode exposing (Value)
@@ -20,3 +22,9 @@ port loadDataset : Value -> Cmd msg
 
 
 port datasetLoaded : (Int -> msg) -> Sub msg
+
+
+port newKeyFrame : (Int -> msg) -> Sub msg
+
+
+port track : () -> Cmd msg

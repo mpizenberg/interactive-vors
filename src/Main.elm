@@ -41,17 +41,18 @@ type alias Slider =
 initialSlider : Slider
 initialSlider =
     { min = 0
-    , max = 1
+    , max = 0
     , current = 0
     }
 
 
 type Msg
-    = IncrementMax
+    = Track
     | Pick Float
     | LoadDataset Value
     | DatasetLoadedMsg Int
     | WindowResizes Device.Size
+    | NewKeyFrame Int
 
 
 update : Msg -> State -> ( State, Cmd Msg )
@@ -63,15 +64,14 @@ update msg model =
         ( DatasetLoadedMsg nb_frames, Initial device ) ->
             ( DatasetLoaded device nb_frames initialSlider, Cmd.none )
 
-        ( IncrementMax, DatasetLoaded device nb_frames slid ) ->
-            if slid.max + 1 < nb_frames then
-                ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 }, Cmd.none )
-
-            else
-                ( model, Cmd.none )
+        ( Track, DatasetLoaded _ _ _ ) ->
+            ( model, Ports.track () )
 
         ( Pick value, DatasetLoaded device nb_frames slid ) ->
             ( DatasetLoaded device nb_frames { slid | current = round value }, Cmd.none )
+
+        ( NewKeyFrame _, DatasetLoaded device nb_frames slid ) ->
+            ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 }, Cmd.none )
 
         -- Window resizes
         ( WindowResizes size, Initial device ) ->
@@ -96,7 +96,8 @@ subscriptions state =
         DatasetLoaded _ _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
-                , Browser.Events.onAnimationFrameDelta (always IncrementMax)
+                , Browser.Events.onAnimationFrameDelta (always Track)
+                , Ports.newKeyFrame NewKeyFrame
                 ]
 
 
@@ -141,7 +142,6 @@ customRenderer { width, height } nb_frames s =
         , attribute "height" (String.fromFloat height)
         , attribute "current" (String.fromInt s.current)
         , attribute "nb-frames" (String.fromInt nb_frames)
-        , attribute "trigger-compute" (String.fromInt s.max)
         ]
         []
 

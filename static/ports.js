@@ -9,6 +9,13 @@ export function activatePorts(app, containerSize) {
 	window.addEventListener("resize", () =>
 		app.ports.resizes.send(containerSize())
 	);
+
+	app.ports.track.subscribe( () => {
+		Renderer.track();
+		if (Renderer.wasm_tracker.change_keyframe) {
+			app.ports.newKeyFrame.send(0);
+		}
+	});
 	
 	// Set up file reader.
 	let file_reader = new FileReader();
