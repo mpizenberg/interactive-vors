@@ -51,6 +51,7 @@ type Msg
     | Pick Float
     | LoadDataset Value
     | DatasetLoadedMsg Int
+    | WindowResizes Device.Size
 
 
 update : Msg -> State -> ( State, Cmd Msg )
@@ -72,6 +73,13 @@ update msg model =
         ( Pick value, DatasetLoaded device nb_frames slid ) ->
             ( DatasetLoaded device nb_frames { slid | current = round value }, Cmd.none )
 
+        -- Window resizes
+        ( WindowResizes size, Initial device ) ->
+            ( Initial { device | size = size }, Cmd.none )
+
+        ( WindowResizes size, DatasetLoaded device nb_frames slid ) ->
+            ( DatasetLoaded { device | size = size } nb_frames slid, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
 
@@ -80,10 +88,16 @@ subscriptions : State -> Sub Msg
 subscriptions state =
     case state of
         Initial _ ->
-            Ports.datasetLoaded DatasetLoadedMsg
+            Sub.batch
+                [ Ports.resizes WindowResizes
+                , Ports.datasetLoaded DatasetLoadedMsg
+                ]
 
         DatasetLoaded _ _ _ ->
-            Time.every 1000 (always IncrementMax)
+            Sub.batch
+                [ Ports.resizes WindowResizes
+                , Time.every 1000 (always IncrementMax)
+                ]
 
 
 view : State -> Html Msg

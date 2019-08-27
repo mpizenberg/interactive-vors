@@ -6,9 +6,9 @@ import * as Renderer from "./Renderer.js"
 
 export function activatePorts(app, containerSize) {
 	// Inform the Elm app when its container div gets resized.
-	// window.addEventListener("resize", () =>
-	// 	app.ports.resizes.send(containerSize())
-	// );
+	window.addEventListener("resize", () =>
+		app.ports.resizes.send(containerSize())
+	);
 	
 	// Set up file reader.
 	let file_reader = new FileReader();

@@ -20,6 +20,7 @@ export let set_end_valid = (n) => end_valid = n;
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.z = 10;
+// camera.lookAt(new THREE.Vector3(camera.position.x, camera.position.y, 10));
 scene = new THREE.Scene();
 scene.background = new THREE.Color( 0x050505 );
 
@@ -51,12 +52,11 @@ async function load_wasm() {
 	renderer.setPixelRatio(window.devicePixelRatio);
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.display = "block";
-	// renderer.render(scene, camera);
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.update();
 }
 
-function getPosMemBuffer() {
+export function getPosMemBuffer() {
 	return new Float32Array(wasm.memory.buffer, point_cloud.points(), 3 * nb_particles);
 }
 
@@ -64,7 +64,13 @@ function getColMemBuffer() {
 	return new Float32Array(wasm.memory.buffer, point_cloud.colors(), 3 * nb_particles);
 }
 
-function trackAndRender(frame_id, nb_frames) {
+function renderLoop() {
+	controls.update();
+	renderer.render(scene, camera);
+	window.requestAnimationFrame(renderLoop);
+}
+
+function trackFrame(frame_id, nb_frames) {
 	if (frame_id < nb_frames) {
 		const frame_pose = wasm_tracker.track(frame_id);
 		console.log(frame_pose);
@@ -72,8 +78,6 @@ function trackAndRender(frame_id, nb_frames) {
 		end_valid = point_cloud.tick(wasm_tracker);
 		updateGeometry(start_valid, end_valid);
 	}
-	controls.update();
-	renderer.render(scene, camera);
 }
 
 export function updateGeometry(start_valid, end_valid) {
@@ -113,6 +117,7 @@ class Renderer extends HTMLElement {
 		this.nb_frames = 0;
 		this.attachShadow({ mode: 'open' });
 		this.shadowRoot.appendChild(renderer.domElement);
+		renderLoop();
 	}
 
 	static get observedAttributes() {
@@ -149,7 +154,7 @@ class Renderer extends HTMLElement {
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				console.log(`trigger-compute changed from ${oldValue} to ${newValue}`);
 				this.max += 1;
-				trackAndRender(this.max, this.nb_frames);
+				trackFrame(this.max, this.nb_frames);
 				break;
 		}
 	}
