@@ -25,6 +25,15 @@ export function activatePorts(app, containerSize) {
 		Renderer.renderer.render(Renderer.scene, Renderer.camera);
 		app.ports.datasetLoaded.send(nb_frames);
 		file_reader = null; // Free memory.
+
+		// Debug: generate obj.
+		// let obj_vec = [];
+		// let pos_buffer = Renderer.getPosMemBuffer(...);
+		// for (let i = start_valid; i < end_valid; i += 3) {
+		// 	obj_vec.push(`v ${pos_buffer[i]} ${pos_buffer[i+1]} ${pos_buffer[i+2]}`);
+		// }
+		// let obj = obj_vec.join('\n');
+		// download('point_cloud.obj', obj);
 	}
 
 	// Transfer archive data to wasm when the file is loaded.
@@ -45,3 +54,13 @@ export function activatePorts(app, containerSize) {
 		Renderer.wasm_tracker.build_entries_map();
 	}
 };
+
+function download(filename, text) {
+	var element = document.createElement('a');
+	element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+	element.setAttribute('download', filename);
+	element.style.display = 'none';
+	document.body.appendChild(element);
+	element.click();
+	document.body.removeChild(element);
+}

@@ -182,7 +182,7 @@ fn _read_image_pair_bis(
     assoc: &tum_rgbd::Association,
     file: &[u8],
     entries: &HashMap<String, FileEntry>,
-) -> Result<(DMatrix<u16>, DMatrix<u8>), Box<Error>> {
+) -> Result<(DMatrix<u16>, DMatrix<u8>), Box<dyn Error>> {
     // Read depth image.
     let depth_path_str = assoc.depth_file_path.to_str().expect("oaea").to_owned();
     let depth_buffer = get_buffer(&depth_path_str, file, entries);
@@ -236,7 +236,6 @@ fn _png_decode_u16(input: &[u8]) -> Result<(usize, usize, Vec<u16>), Box<dyn Err
 pub struct PointCloud {
     end: usize,
     points: Vec<f32>,
-    colors: Vec<f32>,
 }
 
 /// Public methods, exported to JavaScript.
@@ -244,21 +243,12 @@ pub struct PointCloud {
 impl PointCloud {
     pub fn new(nb_points: usize) -> PointCloud {
         let points = vec![0.0; 3 * nb_points];
-        let colors = vec![0.0; 3 * nb_points];
         console_log!("PointCloud initialized");
-        PointCloud {
-            end: 0,
-            points,
-            colors,
-        }
+        PointCloud { end: 0, points }
     }
 
     pub fn points(&self) -> *const f32 {
         self.points.as_ptr()
-    }
-
-    pub fn colors(&self) -> *const f32 {
-        self.colors.as_ptr()
     }
 
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) -> usize {
@@ -273,8 +263,6 @@ impl PointCloud {
                 .expect("tracker");
             self.end = start + 3 * points_3d.len();
             let points = &mut self.points[start..self.end];
-            let colors = &mut self.colors[start..self.end];
-            colors.iter_mut().for_each(|x| *x = 0.9);
             points
                 .chunks_mut(3)
                 .zip(points_3d.iter())
