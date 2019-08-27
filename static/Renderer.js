@@ -49,7 +49,8 @@ async function load_wasm() {
 	// Setup the renderer.
 	renderer = new THREE.WebGLRenderer();
 	renderer.setPixelRatio(window.devicePixelRatio);
-	renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.domElement.style.display = "block";
 	// renderer.render(scene, camera);
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.update();
@@ -93,11 +94,11 @@ export function updateGeometry(start_valid, end_valid) {
 	}
 }
 
-// function onWindowResize() {
-// 	camera.aspect = window.innerWidth / window.innerHeight;
-// 	camera.updateProjectionMatrix();
-// 	renderer.setSize(window.innerWidth, window.innerHeight);
-// }
+function onResize(width, height) {
+	camera.aspect = width / height;
+	camera.updateProjectionMatrix();
+	renderer.setSize(width, height);
+}
 
 
 // WEB COMPONENT stuff #########################################################
@@ -105,6 +106,8 @@ export function updateGeometry(start_valid, end_valid) {
 class Renderer extends HTMLElement {
 	constructor() {
 		super();
+		this.width = 0;
+		this.height = 0;
 		this.max = 0;
 		this.current = 0;
 		this.nb_frames = 0;
@@ -113,11 +116,23 @@ class Renderer extends HTMLElement {
 	}
 
 	static get observedAttributes() {
-		return ['current', 'trigger-compute', 'nb-frames'];
+		return ['width', 'height', 'current', 'trigger-compute', 'nb-frames'];
 	}
 
 	attributeChangedCallback(name, oldValue, newValue) {
 		switch (name) {
+			case 'width':
+				if (newValue === oldValue) break;
+				console.log(`width: ${oldValue} to ${newValue}`);
+				this.width = +newValue;
+				onResize(this.width, this.height);
+				break;
+			case 'height':
+				if (newValue === oldValue) break;
+				console.log(`height: ${oldValue} to ${newValue}`);
+				this.height = +newValue;
+				onResize(this.width, this.height);
+				break;
 			case 'nb-frames':
 				if (newValue === oldValue) break;
 				console.log(`nb-frames changed from ${oldValue} to ${newValue}`);
@@ -133,7 +148,6 @@ class Renderer extends HTMLElement {
 				if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				console.log(`trigger-compute changed from ${oldValue} to ${newValue}`);
-				console.log(`this.max: ${this.max}`);
 				this.max += 1;
 				trackAndRender(this.max, this.nb_frames);
 				break;

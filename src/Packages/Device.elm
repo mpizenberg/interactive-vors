@@ -21,8 +21,8 @@ type alias Device =
 
 
 type alias Size =
-    { width : Int
-    , height : Int
+    { width : Float
+    , height : Float
     }
 
 

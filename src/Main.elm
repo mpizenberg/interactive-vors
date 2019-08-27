@@ -1,7 +1,7 @@
 module Main exposing (main)
 
 import Browser
-import Element exposing (Element, centerY, el, fill, height, padding, px, rgb255, width)
+import Element exposing (Element, centerY, el, fill, height, px, rgb255, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Input as Input
@@ -9,16 +9,17 @@ import Html exposing (Html)
 import Html.Attributes exposing (attribute)
 import Icon
 import Json.Encode exposing (Value)
+import Packages.Device as Device exposing (Device)
 import Packages.FileInput as FileInput
 import Ports
 import Style
 import Time
 
 
-main : Program () State Msg
+main : Program Device.Size State Msg
 main =
     Browser.element
-        { init = \() -> ( Initial, Cmd.none )
+        { init = \size -> ( Initial (Device.classify size), Cmd.none )
         , view = view
         , update = update
         , subscriptions = subscriptions
@@ -26,8 +27,8 @@ main =
 
 
 type State
-    = Initial
-    | DatasetLoaded Int Slider
+    = Initial Device
+    | DatasetLoaded Device Int Slider
 
 
 type alias Slider =
@@ -55,21 +56,21 @@ type Msg
 update : Msg -> State -> ( State, Cmd Msg )
 update msg model =
     case ( msg, model ) of
-        ( LoadDataset jsValue, Initial ) ->
+        ( LoadDataset jsValue, Initial _ ) ->
             ( model, Ports.loadDataset jsValue )
 
-        ( DatasetLoadedMsg nb_frames, Initial ) ->
-            ( DatasetLoaded nb_frames initialSlider, Cmd.none )
+        ( DatasetLoadedMsg nb_frames, Initial device ) ->
+            ( DatasetLoaded device nb_frames initialSlider, Cmd.none )
 
-        ( IncrementMax, DatasetLoaded nb_frames slid ) ->
+        ( IncrementMax, DatasetLoaded device nb_frames slid ) ->
             if slid.max + 1 < nb_frames then
-                ( DatasetLoaded nb_frames { slid | max = slid.max + 1 }, Cmd.none )
+                ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 }, Cmd.none )
 
             else
                 ( model, Cmd.none )
 
-        ( Pick value, DatasetLoaded nb_frames slid ) ->
-            ( DatasetLoaded nb_frames { slid | current = round value }, Cmd.none )
+        ( Pick value, DatasetLoaded device nb_frames slid ) ->
+            ( DatasetLoaded device nb_frames { slid | current = round value }, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
@@ -78,10 +79,10 @@ update msg model =
 subscriptions : State -> Sub Msg
 subscriptions state =
     case state of
-        Initial ->
+        Initial _ ->
             Ports.datasetLoaded DatasetLoadedMsg
 
-        DatasetLoaded _ _ ->
+        DatasetLoaded _ _ _ ->
             Time.every 1000 (always IncrementMax)
 
 
@@ -93,31 +94,38 @@ view model =
 appLayout : State -> Element Msg
 appLayout model =
     case model of
-        Initial ->
+        Initial _ ->
             loadDatasetButton LoadDataset
 
-        DatasetLoaded nb_frames slid ->
-            Element.column [ width fill, height fill ]
-                [ renderer nb_frames slid
+        DatasetLoaded device nb_frames slid ->
+            let
+                rendererSize =
+                    { width = device.size.width
+                    , height = device.size.height - 50
+                    }
+            in
+            Element.column [ width fill, height fill, Element.clip ]
+                [ renderer rendererSize nb_frames slid
                 , el [ width fill, height (px 50), Element.paddingXY 10 0 ] (slider slid)
                 ]
 
 
-renderer : Int -> Slider -> Element msg
-renderer nb_frames s =
+renderer : Device.Size -> Int -> Slider -> Element msg
+renderer size nb_frames s =
     el
         [ width fill
         , height fill
         , Background.color (rgb255 255 220 255)
-        , padding 30
         ]
-        (Element.html (customRenderer nb_frames s))
+        (Element.html (customRenderer size nb_frames s))
 
 
-customRenderer : Int -> Slider -> Html msg
-customRenderer nb_frames s =
+customRenderer : Device.Size -> Int -> Slider -> Html msg
+customRenderer { width, height } nb_frames s =
     Html.node "custom-renderer"
-        [ attribute "current" (String.fromInt s.current)
+        [ attribute "width" (String.fromFloat width)
+        , attribute "height" (String.fromFloat height)
+        , attribute "current" (String.fromInt s.current)
         , attribute "nb-frames" (String.fromInt nb_frames)
         , attribute "trigger-compute" (String.fromInt s.max)
         ]
