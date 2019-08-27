@@ -27,7 +27,7 @@ main =
 
 type State
     = Initial
-    | DatasetLoaded Slider
+    | DatasetLoaded Int Slider
 
 
 type alias Slider =
@@ -59,13 +59,17 @@ update msg model =
             ( model, Ports.loadDataset jsValue )
 
         ( DatasetLoadedMsg nb_frames, Initial ) ->
-            ( DatasetLoaded initialSlider, Cmd.none )
+            ( DatasetLoaded nb_frames initialSlider, Cmd.none )
 
-        ( IncrementMax, DatasetLoaded slid ) ->
-            ( DatasetLoaded { slid | max = slid.max + 1 }, Cmd.none )
+        ( IncrementMax, DatasetLoaded nb_frames slid ) ->
+            if slid.max + 1 < nb_frames then
+                ( DatasetLoaded nb_frames { slid | max = slid.max + 1 }, Cmd.none )
 
-        ( Pick value, DatasetLoaded slid ) ->
-            ( DatasetLoaded { slid | current = round value }, Cmd.none )
+            else
+                ( model, Cmd.none )
+
+        ( Pick value, DatasetLoaded nb_frames slid ) ->
+            ( DatasetLoaded nb_frames { slid | current = round value }, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
@@ -77,7 +81,7 @@ subscriptions state =
         Initial ->
             Ports.datasetLoaded DatasetLoadedMsg
 
-        DatasetLoaded _ ->
+        DatasetLoaded _ _ ->
             Time.every 1000 (always IncrementMax)
 
 
@@ -92,28 +96,29 @@ appLayout model =
         Initial ->
             loadDatasetButton LoadDataset
 
-        DatasetLoaded slid ->
+        DatasetLoaded nb_frames slid ->
             Element.column [ width fill, height fill ]
-                [ renderer slid
+                [ renderer nb_frames slid
                 , el [ width fill, height (px 50), Element.paddingXY 10 0 ] (slider slid)
                 ]
 
 
-renderer : Slider -> Element msg
-renderer model =
+renderer : Int -> Slider -> Element msg
+renderer nb_frames s =
     el
         [ width fill
         , height fill
         , Background.color (rgb255 255 220 255)
         , padding 30
         ]
-        (Element.html (customRenderer model))
+        (Element.html (customRenderer nb_frames s))
 
 
-customRenderer : Slider -> Html msg
-customRenderer s =
+customRenderer : Int -> Slider -> Html msg
+customRenderer nb_frames s =
     Html.node "custom-renderer"
-        [ attribute "value" (String.fromInt s.current)
+        [ attribute "current" (String.fromInt s.current)
+        , attribute "nb-frames" (String.fromInt nb_frames)
         , attribute "trigger-compute" (String.fromInt s.max)
         ]
         []

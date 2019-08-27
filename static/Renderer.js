@@ -49,7 +49,7 @@ async function load_wasm() {
 	// Setup the renderer.
 	renderer = new THREE.WebGLRenderer();
 	renderer.setPixelRatio(window.devicePixelRatio);
-	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
 	// renderer.render(scene, camera);
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.update();
@@ -63,7 +63,7 @@ function getColMemBuffer() {
 	return new Float32Array(wasm.memory.buffer, point_cloud.colors(), 3 * nb_particles);
 }
 
-export function track(wasm_tracker, frame_id, nb_frames) {
+function trackAndRender(frame_id, nb_frames) {
 	if (frame_id < nb_frames) {
 		const frame_pose = wasm_tracker.track(frame_id);
 		console.log(frame_pose);
@@ -73,9 +73,6 @@ export function track(wasm_tracker, frame_id, nb_frames) {
 	}
 	controls.update();
 	renderer.render(scene, camera);
-	// window.requestAnimationFrame(() =>
-	// 	track(wasm_tracker, frame_id + 1, nb_frames)
-	// );
 }
 
 export function updateGeometry(start_valid, end_valid) {
@@ -105,41 +102,42 @@ export function updateGeometry(start_valid, end_valid) {
 
 // WEB COMPONENT stuff #########################################################
 
-const template = document.createElement('template');
-template.innerHTML = "<span id=content><span>";
-
 class Renderer extends HTMLElement {
 	constructor() {
 		super();
 		this.max = 0;
-		this.value = 0;
+		this.current = 0;
+		this.nb_frames = 0;
 		this.attachShadow({ mode: 'open' });
-		this.shadowRoot.appendChild(template.content.cloneNode(true));
-		this.content = this.shadowRoot.getElementById("content");
+		this.shadowRoot.appendChild(renderer.domElement);
 	}
 
 	static get observedAttributes() {
-		return ['value', 'trigger-compute'];
+		return ['current', 'trigger-compute', 'nb-frames'];
 	}
 
 	attributeChangedCallback(name, oldValue, newValue) {
 		switch (name) {
-			case 'value':
+			case 'nb-frames':
+				if (newValue === oldValue) break;
+				console.log(`nb-frames changed from ${oldValue} to ${newValue}`);
+				this.nb_frames = +newValue;
+				break;
+			case 'current':
 				if (newValue === oldValue) break;
 				console.log(`value changed from ${oldValue} to ${newValue}`);
-				this.value = +newValue;
-				this.updateContent();
+				console.log("TODO: change points color of current frame");
+				this.current = +newValue;
 				break;
 			case 'trigger-compute':
+				if (oldValue == null) break; // Do not trigger at initialization.
+				if (newValue === oldValue) break; // Do not accidentally trigger.
 				console.log(`trigger-compute changed from ${oldValue} to ${newValue}`);
+				console.log(`this.max: ${this.max}`);
 				this.max += 1;
-				this.updateContent();
+				trackAndRender(this.max, this.nb_frames);
 				break;
 		}
-	}
-
-	updateContent() {
-		this.content.innerHTML = `value: ${this.value}, max: ${this.max}`
 	}
 
 	connectedCallback() {
