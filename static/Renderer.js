@@ -54,7 +54,7 @@ async function load_wasm() {
 
 	// Add a second point cloud for current frame.
 	current_geometry.addAttribute("position", pos_buffer_attr);
-	let current_material = new THREE.PointsMaterial({size: 0.03, color: 0xff0000});
+	let current_material = new THREE.PointsMaterial({size: 0.05, color: 0xff0000});
 	let current_particles = new THREE.Points(current_geometry, current_material);
 	current_particles.frustumCulled = false;
 	scene.add(current_particles);
@@ -74,8 +74,10 @@ export function getPosMemBuffer(point_cloud, nb_particles) {
 
 function updateCurrentPointCloud(frame) {
 	let section = point_cloud.section(frame);
-	console.log(`section: ${section.start}-${section.end}`);
-	current_geometry.setDrawRange(section.start / 3, section.end / 3);
+	let start = section.start / 3;
+	let end = section.end / 3;
+	let nb_points = end - start;
+	current_geometry.setDrawRange(start, nb_points);
 }
 
 function renderLoop() {
