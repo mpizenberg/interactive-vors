@@ -128,23 +128,21 @@ class Renderer extends HTMLElement {
 		switch (name) {
 			case 'width':
 				if (newValue === oldValue) break;
-				console.log(`width: ${oldValue} to ${newValue}`);
 				this.width = +newValue;
 				onResize(this.width, this.height);
 				break;
 			case 'height':
 				if (newValue === oldValue) break;
-				console.log(`height: ${oldValue} to ${newValue}`);
 				this.height = +newValue;
 				onResize(this.width, this.height);
 				break;
 			case 'nb-frames':
 				if (newValue === oldValue) break;
-				console.log(`nb-frames changed from ${oldValue} to ${newValue}`);
 				this.nb_frames = +newValue;
 				break;
 			case 'current':
-				if (newValue === oldValue) break;
+				if (oldValue == null) break; // Do not trigger at initialization.
+				if (newValue === oldValue) break; // Do not accidentally trigger.
 				console.log(`value changed from ${oldValue} to ${newValue}`);
 				console.log("TODO: change points color of current frame");
 				this.current = +newValue;
@@ -152,7 +150,6 @@ class Renderer extends HTMLElement {
 			case 'trigger-compute':
 				if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
-				console.log(`trigger-compute changed from ${oldValue} to ${newValue}`);
 				this.max += 1;
 				trackFrame(this.max, this.nb_frames);
 				break;

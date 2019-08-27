@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Browser
+import Browser.Events
 import Element exposing (Element, centerY, el, fill, height, px, rgb255, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -13,7 +14,6 @@ import Packages.Device as Device exposing (Device)
 import Packages.FileInput as FileInput
 import Ports
 import Style
-import Time
 
 
 main : Program Device.Size State Msg
@@ -96,7 +96,7 @@ subscriptions state =
         DatasetLoaded _ _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
-                , Time.every 1000 (always IncrementMax)
+                , Browser.Events.onAnimationFrameDelta (always IncrementMax)
                 ]
 
 
