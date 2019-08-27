@@ -19,8 +19,7 @@ export let set_end_valid = (n) => end_valid = n;
 
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
-camera.position.z = 10;
-// camera.lookAt(new THREE.Vector3(camera.position.x, camera.position.y, 10));
+camera.position.set(0, 0, -1);
 scene = new THREE.Scene();
 scene.background = new THREE.Color( 0x050505 );
 
