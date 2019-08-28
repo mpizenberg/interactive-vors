@@ -5,6 +5,7 @@ import Browser.Events
 import Element exposing (Element, centerY, el, fill, height, px, rgb255, width)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events
 import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes exposing (attribute)
@@ -28,7 +29,7 @@ main =
 
 type State
     = Initial Device
-    | DatasetLoaded Device Int Slider
+    | DatasetLoaded Device Int Slider Bool
 
 
 type alias Slider =
@@ -53,6 +54,7 @@ type Msg
     | DatasetLoadedMsg Int
     | WindowResizes Device.Size
     | NewKeyFrame Int
+    | ToogleTracking
 
 
 update : Msg -> State -> ( State, Cmd Msg )
@@ -62,23 +64,30 @@ update msg model =
             ( model, Ports.loadDataset jsValue )
 
         ( DatasetLoadedMsg nb_frames, Initial device ) ->
-            ( DatasetLoaded device nb_frames initialSlider, Cmd.none )
+            ( DatasetLoaded device nb_frames initialSlider False, Cmd.none )
 
-        ( Track, DatasetLoaded _ _ _ ) ->
-            ( model, Ports.track () )
+        ( Track, DatasetLoaded _ _ _ play ) ->
+            if play then
+                ( model, Ports.track () )
 
-        ( Pick value, DatasetLoaded device nb_frames slid ) ->
-            ( DatasetLoaded device nb_frames { slid | current = round value }, Cmd.none )
+            else
+                ( model, Cmd.none )
 
-        ( NewKeyFrame _, DatasetLoaded device nb_frames slid ) ->
-            ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 }, Cmd.none )
+        ( Pick value, DatasetLoaded device nb_frames slid play ) ->
+            ( DatasetLoaded device nb_frames { slid | current = round value } play, Cmd.none )
+
+        ( NewKeyFrame _, DatasetLoaded device nb_frames slid play ) ->
+            ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 } play, Cmd.none )
+
+        ( ToogleTracking, DatasetLoaded device nb_frames slid play ) ->
+            ( DatasetLoaded device nb_frames slid (not play), Cmd.none )
 
         -- Window resizes
         ( WindowResizes size, Initial device ) ->
             ( Initial { device | size = size }, Cmd.none )
 
-        ( WindowResizes size, DatasetLoaded device nb_frames slid ) ->
-            ( DatasetLoaded { device | size = size } nb_frames slid, Cmd.none )
+        ( WindowResizes size, DatasetLoaded device nb_frames slid play ) ->
+            ( DatasetLoaded { device | size = size } nb_frames slid play, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
@@ -93,7 +102,7 @@ subscriptions state =
                 , Ports.datasetLoaded DatasetLoadedMsg
                 ]
 
-        DatasetLoaded _ _ _ ->
+        DatasetLoaded _ _ _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
                 , Browser.Events.onAnimationFrameDelta (always Track)
@@ -112,7 +121,7 @@ appLayout model =
         Initial _ ->
             loadDatasetButton LoadDataset
 
-        DatasetLoaded device nb_frames slid ->
+        DatasetLoaded device nb_frames slid play ->
             let
                 rendererSize =
                     { width = device.size.width
@@ -121,7 +130,7 @@ appLayout model =
             in
             Element.column [ width fill, height fill, Element.clip ]
                 [ renderer rendererSize nb_frames slid
-                , el [ width fill, height (px 50), Element.paddingXY 10 0 ] (slider slid)
+                , bottomToolbar slid play
                 ]
 
 
@@ -144,6 +153,37 @@ customRenderer { width, height } nb_frames s =
         , attribute "nb-frames" (String.fromInt nb_frames)
         ]
         []
+
+
+bottomToolbar : Slider -> Bool -> Element Msg
+bottomToolbar slid play =
+    Element.row [ width fill, height (px 50), Element.padding 10, Element.spacing 10 ]
+        [ playPauseButton play, slider slid ]
+
+
+playPauseButton : Bool -> Element Msg
+playPauseButton play =
+    let
+        ( icon, title ) =
+            if play then
+                ( Icon.pause, "pause" )
+
+            else
+                ( Icon.play, "play" )
+    in
+    abledButton ToogleTracking title (Icon.toHtml 30 icon)
+
+
+abledButton : msg -> String -> Html msg -> Element msg
+abledButton msg title icon =
+    Html.div (centerFlexAttributes 50) [ icon ]
+        |> Element.html
+        |> Element.el
+            [ Element.mouseOver [ Background.color Style.hoveredItemBG ]
+            , Element.pointer
+            , Element.Events.onClick msg
+            , Element.htmlAttribute (Html.Attributes.title title)
+            ]
 
 
 slider : Slider -> Element Msg
@@ -205,13 +245,17 @@ iconLabelAttributes uniqueId =
     -- gets overwritten by user agent stylesheet for a label
     Html.Attributes.for uniqueId
         :: Html.Attributes.style "cursor" "pointer"
-        :: centerFlexAttributes
+        :: centerFlexAttributes 100
 
 
-centerFlexAttributes : List (Html.Attribute msg)
-centerFlexAttributes =
-    [ Html.Attributes.style "width" "100px"
-    , Html.Attributes.style "height" "100px"
+centerFlexAttributes : Int -> List (Html.Attribute msg)
+centerFlexAttributes size =
+    let
+        sizeString =
+            String.fromInt size ++ "px"
+    in
+    [ Html.Attributes.style "width" sizeString
+    , Html.Attributes.style "height" sizeString
     , Html.Attributes.style "display" "flex"
     , Html.Attributes.style "align-items" "center"
     , Html.Attributes.style "justify-content" "center"

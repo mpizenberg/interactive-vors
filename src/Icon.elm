@@ -15,6 +15,8 @@ module Icon exposing
     , line
     , move
     , outline
+    , pause
+    , play
     , point
     , polygon
     , settings
@@ -95,6 +97,19 @@ point =
 
 
 -- Feather icons ###########################################
+
+
+pause : List (Svg msg)
+pause =
+    [ Svg.rect [ Svg.Attributes.x "6", y "4", width "4", height "16" ] []
+    , Svg.rect [ Svg.Attributes.x "14", y "4", width "4", height "16" ] []
+    ]
+
+
+play : List (Svg msg)
+play =
+    [ Svg.polygon [ points "5 3 19 12 5 21 5 3" ] []
+    ]
 
 
 move : List (Svg msg)
