@@ -90,7 +90,7 @@ update msg model =
             ( DatasetLoaded device nb_frames { slid | current = round value } play fps, Cmd.none )
 
         ( NewKeyFrame _, DatasetLoaded device nb_frames slid play fps ) ->
-            ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 } play fps, Cmd.none )
+            ( DatasetLoaded device nb_frames (updateTimeline slid) play fps, Cmd.none )
 
         ( ToogleTracking, DatasetLoaded device nb_frames slid play fps ) ->
             ( DatasetLoaded device nb_frames slid (not play) fps, Cmd.none )
@@ -107,6 +107,25 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+updateTimeline : Slider -> Slider
+updateTimeline slid =
+    let
+        newMax =
+            slid.max + 1
+
+        newCurrent =
+            if slid.current == slid.max then
+                newMax
+
+            else
+                slid.current
+    in
+    { min = slid.min
+    , max = newMax
+    , current = newCurrent
+    }
 
 
 updateFps : Float -> Fps -> Fps
