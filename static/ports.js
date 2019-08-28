@@ -38,11 +38,11 @@ export function activatePorts(app, containerSize) {
 		let start_valid = Renderer.end_valid;
 		let end_valid = Renderer.point_cloud.tick(Renderer.wasm_tracker);
 		Renderer.set_end_valid(end_valid);
+		Renderer.geometry.setDrawRange(start_valid, end_valid / 3);
 		Renderer.updateGeometry(start_valid, Renderer.end_valid);
 		Renderer.renderer.render(Renderer.scene, Renderer.camera);
 		app.ports.datasetLoaded.send(nb_frames);
 		file_reader = null; // Free memory.
-
 	}
 
 	// Transfer archive data to wasm when the file is loaded.
