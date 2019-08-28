@@ -29,7 +29,15 @@ main =
 
 type State
     = Initial Device
-    | DatasetLoaded Device Int Slider Bool
+    | DatasetLoaded Device Int Slider Bool Fps
+
+
+type alias Fps =
+    { exact : Float
+    , smoothed : Float
+    , stable : Int
+    , accumMs : Float
+    }
 
 
 type alias Slider =
@@ -48,7 +56,7 @@ initialSlider =
 
 
 type Msg
-    = Track
+    = Track Float
     | Pick Float
     | LoadDataset Value
     | DatasetLoadedMsg Int
@@ -64,30 +72,64 @@ update msg model =
             ( model, Ports.loadDataset jsValue )
 
         ( DatasetLoadedMsg nb_frames, Initial device ) ->
-            ( DatasetLoaded device nb_frames initialSlider False, Cmd.none )
+            ( DatasetLoaded device nb_frames initialSlider False (Fps 60 60 60 0), Cmd.none )
 
-        ( Track, DatasetLoaded _ _ _ play ) ->
+        ( Track delta, DatasetLoaded device nb_frames slid play fps ) ->
+            let
+                exact =
+                    1000 / delta
+
+                smoothed =
+                    0.8 * fps.smoothed + 0.2 * exact
+
+                accumMs =
+                    fps.accumMs + delta
+
+                newAccumMs =
+                    if accumMs > 500 then
+                        0
+
+                    else
+                        accumMs
+
+                stable =
+                    if accumMs > 500 then
+                        round smoothed
+
+                    else
+                        fps.stable
+
+                newFps =
+                    { exact = exact
+                    , smoothed = smoothed
+                    , stable = stable
+                    , accumMs = newAccumMs
+                    }
+
+                newModel =
+                    DatasetLoaded device nb_frames slid play newFps
+            in
             if play then
-                ( model, Ports.track () )
+                ( newModel, Ports.track () )
 
             else
-                ( model, Cmd.none )
+                ( newModel, Cmd.none )
 
-        ( Pick value, DatasetLoaded device nb_frames slid play ) ->
-            ( DatasetLoaded device nb_frames { slid | current = round value } play, Cmd.none )
+        ( Pick value, DatasetLoaded device nb_frames slid play fps ) ->
+            ( DatasetLoaded device nb_frames { slid | current = round value } play fps, Cmd.none )
 
-        ( NewKeyFrame _, DatasetLoaded device nb_frames slid play ) ->
-            ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 } play, Cmd.none )
+        ( NewKeyFrame _, DatasetLoaded device nb_frames slid play fps ) ->
+            ( DatasetLoaded device nb_frames { slid | max = slid.max + 1 } play fps, Cmd.none )
 
-        ( ToogleTracking, DatasetLoaded device nb_frames slid play ) ->
-            ( DatasetLoaded device nb_frames slid (not play), Cmd.none )
+        ( ToogleTracking, DatasetLoaded device nb_frames slid play fps ) ->
+            ( DatasetLoaded device nb_frames slid (not play) fps, Cmd.none )
 
         -- Window resizes
         ( WindowResizes size, Initial device ) ->
             ( Initial { device | size = size }, Cmd.none )
 
-        ( WindowResizes size, DatasetLoaded device nb_frames slid play ) ->
-            ( DatasetLoaded { device | size = size } nb_frames slid play, Cmd.none )
+        ( WindowResizes size, DatasetLoaded device nb_frames slid play fps ) ->
+            ( DatasetLoaded { device | size = size } nb_frames slid play fps, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
@@ -102,10 +144,10 @@ subscriptions state =
                 , Ports.datasetLoaded DatasetLoadedMsg
                 ]
 
-        DatasetLoaded _ _ _ _ ->
+        DatasetLoaded _ _ _ _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
-                , Browser.Events.onAnimationFrameDelta (always Track)
+                , Browser.Events.onAnimationFrameDelta Track
                 , Ports.newKeyFrame NewKeyFrame
                 ]
 
@@ -121,7 +163,7 @@ appLayout model =
         Initial _ ->
             loadDatasetButton LoadDataset
 
-        DatasetLoaded device nb_frames slid play ->
+        DatasetLoaded device nb_frames slid play fps ->
             let
                 rendererSize =
                     { width = device.size.width
@@ -130,7 +172,7 @@ appLayout model =
             in
             Element.column [ width fill, height fill, Element.clip ]
                 [ renderer rendererSize nb_frames slid
-                , bottomToolbar slid play
+                , bottomToolbar slid play fps.stable
                 ]
 
 
@@ -155,10 +197,15 @@ customRenderer { width, height } nb_frames s =
         []
 
 
-bottomToolbar : Slider -> Bool -> Element Msg
-bottomToolbar slid play =
+bottomToolbar : Slider -> Bool -> Int -> Element Msg
+bottomToolbar slid play fps =
     Element.row [ width fill, height (px 50), Element.padding 10, Element.spacing 10 ]
-        [ playPauseButton play, slider slid ]
+        [ fpsViewer fps, playPauseButton play, slider slid ]
+
+
+fpsViewer : Int -> Element msg
+fpsViewer fps =
+    Element.text (String.fromInt fps ++ " fps")
 
 
 playPauseButton : Bool -> Element Msg
