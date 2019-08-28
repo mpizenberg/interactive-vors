@@ -160,7 +160,7 @@ class Renderer extends HTMLElement {
 				nb_frames = +newValue;
 				break;
 			case 'current':
-				if (oldValue == null) break; // Do not trigger at initialization.
+				// if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				this.current = +newValue;
 				updateCurrentPointCloud(this.current);
