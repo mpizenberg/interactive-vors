@@ -76,38 +76,8 @@ update msg model =
 
         ( Track delta, DatasetLoaded device nb_frames slid play fps ) ->
             let
-                exact =
-                    1000 / delta
-
-                smoothed =
-                    0.8 * fps.smoothed + 0.2 * exact
-
-                accumMs =
-                    fps.accumMs + delta
-
-                newAccumMs =
-                    if accumMs > 500 then
-                        0
-
-                    else
-                        accumMs
-
-                stable =
-                    if accumMs > 500 then
-                        round smoothed
-
-                    else
-                        fps.stable
-
-                newFps =
-                    { exact = exact
-                    , smoothed = smoothed
-                    , stable = stable
-                    , accumMs = newAccumMs
-                    }
-
                 newModel =
-                    DatasetLoaded device nb_frames slid play newFps
+                    DatasetLoaded device nb_frames slid play (updateFps delta fps)
             in
             if play then
                 ( newModel, Ports.track () )
@@ -133,6 +103,39 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+updateFps : Float -> Fps -> Fps
+updateFps delta fps =
+    let
+        exact =
+            1000 / delta
+
+        smoothed =
+            0.8 * fps.smoothed + 0.2 * exact
+
+        accumMs =
+            fps.accumMs + delta
+
+        newAccumMs =
+            if accumMs > 500 then
+                0
+
+            else
+                accumMs
+
+        stable =
+            if accumMs > 500 then
+                round smoothed
+
+            else
+                fps.stable
+    in
+    { exact = exact
+    , smoothed = smoothed
+    , stable = stable
+    , accumMs = newAccumMs
+    }
 
 
 subscriptions : State -> Sub Msg
