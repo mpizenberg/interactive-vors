@@ -5,6 +5,7 @@
 
 port module Ports exposing
     ( datasetLoaded
+    , exportObj
     , loadDataset
     , newKeyFrame
     , resizes
@@ -28,3 +29,6 @@ port newKeyFrame : (Int -> msg) -> Sub msg
 
 
 port track : () -> Cmd msg
+
+
+port exportObj : () -> Cmd msg

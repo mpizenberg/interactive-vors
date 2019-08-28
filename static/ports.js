@@ -16,6 +16,16 @@ export function activatePorts(app, containerSize) {
 			app.ports.newKeyFrame.send(0);
 		}
 	});
+
+	app.ports.exportObj.subscribe( () => {
+		let obj_vec = [];
+		let pos_buffer = Renderer.getPosMemBuffer(Renderer.point_cloud, Renderer.nb_particles);
+		for (let i = 0; i < Renderer.end_valid; i += 3) {
+			obj_vec.push(`v ${pos_buffer[i]} ${pos_buffer[i+1]} ${pos_buffer[i+2]}`);
+		}
+		let obj = obj_vec.join('\n');
+		download('point_cloud.obj', obj);
+	});
 	
 	// Set up file reader.
 	let file_reader = new FileReader();
@@ -33,14 +43,6 @@ export function activatePorts(app, containerSize) {
 		app.ports.datasetLoaded.send(nb_frames);
 		file_reader = null; // Free memory.
 
-		// Debug: generate obj.
-		// let obj_vec = [];
-		// let pos_buffer = Renderer.getPosMemBuffer(...);
-		// for (let i = start_valid; i < end_valid; i += 3) {
-		// 	obj_vec.push(`v ${pos_buffer[i]} ${pos_buffer[i+1]} ${pos_buffer[i+2]}`);
-		// }
-		// let obj = obj_vec.join('\n');
-		// download('point_cloud.obj', obj);
 	}
 
 	// Transfer archive data to wasm when the file is loaded.

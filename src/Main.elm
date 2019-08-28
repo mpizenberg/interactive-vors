@@ -63,6 +63,7 @@ type Msg
     | WindowResizes Device.Size
     | NewKeyFrame Int
     | ToogleTracking
+    | ExportObj
 
 
 update : Msg -> State -> ( State, Cmd Msg )
@@ -93,6 +94,9 @@ update msg model =
 
         ( ToogleTracking, DatasetLoaded device nb_frames slid play fps ) ->
             ( DatasetLoaded device nb_frames slid (not play) fps, Cmd.none )
+
+        ( ExportObj, DatasetLoaded _ _ _ _ _ ) ->
+            ( model, Ports.exportObj () )
 
         -- Window resizes
         ( WindowResizes size, Initial device ) ->
@@ -203,7 +207,7 @@ customRenderer { width, height } nb_frames s =
 bottomToolbar : Slider -> Bool -> Int -> Element Msg
 bottomToolbar slid play fps =
     Element.row [ width fill, height (px 50), Element.padding 10, Element.spacing 10 ]
-        [ fpsViewer fps, playPauseButton play, slider slid ]
+        [ fpsViewer fps, playPauseButton play, slider slid, exportObjButton ]
 
 
 fpsViewer : Int -> Element msg
@@ -222,6 +226,11 @@ playPauseButton play =
                 ( Icon.play, "play" )
     in
     abledButton ToogleTracking title (Icon.toHtml 30 icon)
+
+
+exportObjButton : Element Msg
+exportObjButton =
+    abledButton ExportObj "Export to obj file" (Icon.toHtml 30 Icon.download)
 
 
 abledButton : msg -> String -> Html msg -> Element msg
