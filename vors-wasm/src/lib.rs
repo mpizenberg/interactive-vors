@@ -255,7 +255,7 @@ impl CameraPath {
     }
 
     pub fn index_kf(&self, id: usize) -> usize {
-        self.indices_kf[id]
+        self.indices_kf[id] / 3
     }
 
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) {

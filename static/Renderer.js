@@ -108,7 +108,7 @@ export function getPosMemBuffer(point_cloud, nb_particles) {
 
 function updateCurrentCameraPoseKf(frame) {
 	let index = camera_path.index_kf(frame);
-	current_camera_path_geometry.setDrawRange(index/3, 1);
+	current_camera_path_geometry.setDrawRange(index, 1);
 }
 
 function updateCurrentPointCloud(frame) {
@@ -142,7 +142,7 @@ function trackFrame(frame_id, nb_frames) {
 		// update camera path.
 		camera_path.tick(wasm_tracker);
 		camera_path_geometry.setDrawRange(0, frame_id);
-		updateCameraGeometry(3 * (frame_id - 1), 3 * frame_id);
+		updateCameraGeometry(3 * frame_id, 3 * (frame_id + 1));
 	}
 }
 
