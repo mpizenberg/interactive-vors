@@ -132,8 +132,6 @@ class Renderer extends HTMLElement {
 		super();
 		this.width = 0;
 		this.height = 0;
-		this.max = 0;
-		this.current = 0;
 		this.attachShadow({ mode: 'open' });
 		this.shadowRoot.appendChild(renderer.domElement);
 		renderLoop();
@@ -162,8 +160,7 @@ class Renderer extends HTMLElement {
 			case 'current':
 				// if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
-				this.current = +newValue;
-				updateCurrentPointCloud(this.current);
+				updateCurrentPointCloud(+newValue);
 				break;
 		}
 	}
