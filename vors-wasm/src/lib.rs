@@ -236,25 +236,23 @@ fn _png_decode_u16(input: &[u8]) -> Result<(usize, usize, Vec<u16>), Box<dyn Err
 pub struct CameraPath {
     poses: Vec<f32>,
     poses_kf: Vec<f32>,
-    orientations_kf: Vec<f32>, // quaternion
+    // orientations_kf: Vec<f32>, // quaternion
     end: usize,
     end_kf: usize,
-    end_kf_rot: usize,
+    // end_kf_rot: usize,
 }
 
 #[wasm_bindgen]
 impl CameraPath {
     pub fn new(nb_frames: usize) -> CameraPath {
         assert!(nb_frames > 0);
-        let mut orientations_kf = vec![0.0; 4 * nb_frames];
-        orientations_kf[3] = 1.0;
         CameraPath {
             poses: vec![0.0; 3 * nb_frames],
             poses_kf: vec![0.0; 3 * nb_frames],
-            orientations_kf,
-            end: 3,
-            end_kf: 3,
-            end_kf_rot: 4,
+            // orientations_kf: vec![0.0; 4 * nb_frames],
+            end: 0,
+            end_kf: 0,
+            // end_kf_rot: 0,
         }
     }
 
@@ -266,9 +264,9 @@ impl CameraPath {
         self.poses_kf.as_ptr()
     }
 
-    pub fn orientations_kf(&self) -> *const f32 {
-        self.orientations_kf.as_ptr()
-    }
+    // pub fn orientations_kf(&self) -> *const f32 {
+    //     self.orientations_kf.as_ptr()
+    // }
 
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) {
         let (_, pose) = wasm_tracker
@@ -287,12 +285,12 @@ impl CameraPath {
             self.poses_kf[self.end_kf + 1] = translation.y;
             self.poses_kf[self.end_kf + 2] = translation.z;
             self.end_kf += 3;
-            let rotation = pose.rotation.quaternion().coords;
-            self.orientations_kf[self.end_kf_rot] = rotation.x;
-            self.orientations_kf[self.end_kf_rot] = rotation.y;
-            self.orientations_kf[self.end_kf_rot] = rotation.z;
-            self.orientations_kf[self.end_kf_rot] = rotation.w;
-            self.end_kf_rot += 4;
+            // let rotation = pose.rotation.quaternion().coords;
+            // self.orientations_kf[self.end_kf_rot] = rotation.x;
+            // self.orientations_kf[self.end_kf_rot] = rotation.y;
+            // self.orientations_kf[self.end_kf_rot] = rotation.z;
+            // self.orientations_kf[self.end_kf_rot] = rotation.w;
+            // self.end_kf_rot += 4;
         }
     }
 }
