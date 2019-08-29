@@ -28,6 +28,9 @@ export let camera_path_nb_frames = 10000;
 export let camera_pose_attr;
 export let camera_path_geometry;
 
+// Current camera keyframe pose.
+export let current_camera_path_geometry;
+
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.set(0, 0, -1);
@@ -41,6 +44,8 @@ current_geometry = new THREE.BufferGeometry();
 current_geometry.setDrawRange(0, 0);
 camera_path_geometry = new THREE.BufferGeometry();
 camera_path_geometry.setDrawRange(0, 0);
+current_camera_path_geometry = new THREE.BufferGeometry();
+current_camera_path_geometry.setDrawRange(0, 0);
 
 // Run Forest!
 load_wasm();
@@ -72,11 +77,17 @@ async function load_wasm() {
 	let camera_pose_buffer = getCameraPoseBuffer();
 	camera_pose_attr = new THREE.BufferAttribute(camera_pose_buffer, 3).setDynamic(true);
 	camera_path_geometry.addAttribute('position', camera_pose_attr);
-	// let camera_path_material = new THREE.LineBasicMaterial({color: 0xAA77DD, linewidth: 1});
 	let camera_path_material = new THREE.PointsMaterial({color: 0xAA77DD, size: 0.03});
 	let line = new THREE.Points(camera_path_geometry, camera_path_material);
 	line.frustumCulled = false;
 	scene.add(line);
+
+	// Add a geometry for the current keyframe camera.
+	current_camera_path_geometry.addAttribute('position', camera_pose_attr);
+	let current_camera_path_material = new THREE.PointsMaterial({color: 0xFF0000, size: 0.08});
+	let current_line = new THREE.Points(current_camera_path_geometry, current_camera_path_material);
+	current_line.frustumCulled = false;
+	scene.add(current_line);
 
 	// Setup the renderer.
 	renderer = new THREE.WebGLRenderer();
@@ -93,6 +104,11 @@ function getCameraPoseBuffer() {
 
 export function getPosMemBuffer(point_cloud, nb_particles) {
 	return new Float32Array(wasm.memory.buffer, point_cloud.points(), 3 * nb_particles);
+}
+
+function updateCurrentCameraPoseKf(frame) {
+	let index = camera_path.index_kf(frame);
+	current_camera_path_geometry.setDrawRange(index/3, 1);
 }
 
 function updateCurrentPointCloud(frame) {
@@ -200,6 +216,7 @@ class Renderer extends HTMLElement {
 				// if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				updateCurrentPointCloud(+newValue);
+				updateCurrentCameraPoseKf(+newValue);
 				break;
 		}
 	}
