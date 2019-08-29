@@ -35,11 +35,17 @@ export function activatePorts(app, containerSize) {
 		console.log("Initializing tracker with first image ...");
 		const nb_frames = Renderer.wasm_tracker.init("icl");
 		console.log("Rendering first frame point cloud ...");
+		// Update point cloud.
 		let start_valid = Renderer.end_valid;
 		let end_valid = Renderer.point_cloud.tick(Renderer.wasm_tracker);
 		Renderer.set_end_valid(end_valid);
 		Renderer.geometry.setDrawRange(start_valid, end_valid / 3);
 		Renderer.updateGeometry(start_valid, Renderer.end_valid);
+		// Update camera path.
+		Renderer.camera_path.tick(Renderer.wasm_tracker);
+		Renderer.camera_path_geometry.setDrawRange(0, 1);
+		Renderer.updateCameraGeometry(0, 3);
+		// Render.
 		Renderer.renderer.render(Renderer.scene, Renderer.camera);
 		app.ports.datasetLoaded.send(nb_frames);
 		file_reader = null; // Free memory.

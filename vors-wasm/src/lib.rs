@@ -230,6 +230,73 @@ fn _png_decode_u16(input: &[u8]) -> Result<(usize, usize, Vec<u16>), Box<dyn Err
     Ok((png_img.width, png_img.height, buffer_u16))
 }
 
+// Camera stuff ################################################################
+
+#[wasm_bindgen]
+pub struct CameraPath {
+    poses: Vec<f32>,
+    poses_kf: Vec<f32>,
+    orientations_kf: Vec<f32>, // quaternion
+    end: usize,
+    end_kf: usize,
+    end_kf_rot: usize,
+}
+
+#[wasm_bindgen]
+impl CameraPath {
+    pub fn new(nb_frames: usize) -> CameraPath {
+        assert!(nb_frames > 0);
+        let mut orientations_kf = vec![0.0; 4 * nb_frames];
+        orientations_kf[3] = 1.0;
+        CameraPath {
+            poses: vec![0.0; 3 * nb_frames],
+            poses_kf: vec![0.0; 3 * nb_frames],
+            orientations_kf,
+            end: 3,
+            end_kf: 3,
+            end_kf_rot: 4,
+        }
+    }
+
+    pub fn poses(&self) -> *const f32 {
+        self.poses.as_ptr()
+    }
+
+    pub fn poses_kf(&self) -> *const f32 {
+        self.poses_kf.as_ptr()
+    }
+
+    pub fn orientations_kf(&self) -> *const f32 {
+        self.orientations_kf.as_ptr()
+    }
+
+    pub fn tick(&mut self, wasm_tracker: &WasmTracker) {
+        let (_, pose) = wasm_tracker
+            .tracker
+            .as_ref()
+            .map(|t| t.current_frame())
+            .expect("current_frame");
+        let translation = pose.translation.vector;
+        self.poses[self.end] = translation.x;
+        self.poses[self.end + 1] = translation.y;
+        self.poses[self.end + 2] = translation.z;
+        // console_log!("translation: {:?}", &self.poses[self.end..self.end + 3]);
+        self.end += 3;
+        if wasm_tracker.change_keyframe {
+            self.poses_kf[self.end_kf] = translation.x;
+            self.poses_kf[self.end_kf + 1] = translation.y;
+            self.poses_kf[self.end_kf + 2] = translation.z;
+            self.end_kf += 3;
+            let rotation = pose.rotation.quaternion().coords;
+            self.orientations_kf[self.end_kf_rot] = rotation.x;
+            self.orientations_kf[self.end_kf_rot] = rotation.y;
+            self.orientations_kf[self.end_kf_rot] = rotation.z;
+            self.orientations_kf[self.end_kf_rot] = rotation.w;
+            self.end_kf_rot += 4;
+        }
+    }
+}
+
 // Point cloud stuff ###########################################################
 
 #[wasm_bindgen]

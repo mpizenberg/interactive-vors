@@ -1,4 +1,4 @@
-import { PointCloud, WasmTracker, default as init } from "./wasm-pkg/wasm_vors.js";
+import { PointCloud, WasmTracker, CameraPath, default as init } from "./wasm-pkg/wasm_vors.js";
 
 // WASM stuff ##################################################################
 
@@ -22,6 +22,12 @@ export let set_end_valid = (n) => end_valid = n;
 // Current frame point cloud.
 export let current_geometry;
 
+// Camera path
+export let camera_path;
+export let camera_path_nb_frames = 10000;
+export let camera_pose_attr;
+export let camera_path_geometry;
+
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.set(0, 0, -1);
@@ -33,6 +39,8 @@ geometry = new THREE.BufferGeometry();
 geometry.setDrawRange(0, end_valid / 3);
 current_geometry = new THREE.BufferGeometry();
 current_geometry.setDrawRange(0, 0);
+camera_path_geometry = new THREE.BufferGeometry();
+camera_path_geometry.setDrawRange(0, 0);
 
 // Run Forest!
 load_wasm();
@@ -42,6 +50,7 @@ async function load_wasm() {
 	wasm = await init("./wasm-pkg/wasm_vors_bg.wasm");
 	wasm_tracker = WasmTracker.new();
 	point_cloud = PointCloud.new(nb_particles);
+	camera_path = CameraPath.new(camera_path_nb_frames);
 
 	// Bind geometry to THREE buffers.
 	let pos_mem_buffer = getPosMemBuffer(point_cloud, nb_particles);
@@ -59,6 +68,16 @@ async function load_wasm() {
 	current_particles.frustumCulled = false;
 	scene.add(current_particles);
 
+	// Bind camera path to THREE buffers.
+	let camera_pose_buffer = getCameraPoseBuffer();
+	camera_pose_attr = new THREE.BufferAttribute(camera_pose_buffer, 3).setDynamic(true);
+	camera_path_geometry.addAttribute('position', camera_pose_attr);
+	// let camera_path_material = new THREE.LineBasicMaterial({color: 0xAA77DD, linewidth: 1});
+	let camera_path_material = new THREE.PointsMaterial({color: 0xAA77DD, size: 0.03});
+	let line = new THREE.Points(camera_path_geometry, camera_path_material);
+	line.frustumCulled = false;
+	scene.add(line);
+
 	// Setup the renderer.
 	renderer = new THREE.WebGLRenderer();
 	renderer.setPixelRatio(window.devicePixelRatio);
@@ -66,6 +85,10 @@ async function load_wasm() {
 	renderer.domElement.style.display = "block";
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.update();
+}
+
+function getCameraPoseBuffer() {
+	return new Float32Array(wasm.memory.buffer, camera_path.poses(), 3 * camera_path_nb_frames);
 }
 
 export function getPosMemBuffer(point_cloud, nb_particles) {
@@ -87,18 +110,34 @@ function renderLoop() {
 }
 
 export function track() {
-	trackFrame(last_tracked_frame, nb_frames);
 	last_tracked_frame += 1;
+	trackFrame(last_tracked_frame, nb_frames);
 }
 
 function trackFrame(frame_id, nb_frames) {
 	if (frame_id < nb_frames) {
 		const frame_pose = wasm_tracker.track(frame_id);
 		console.log(frame_pose);
+		// update point cloud.
 		let start_update = end_valid;
 		end_valid = point_cloud.tick(wasm_tracker);
 		geometry.setDrawRange(0, end_valid / 3);
 		updateGeometry(start_update, end_valid);
+		// update camera path.
+		camera_path.tick(wasm_tracker);
+		camera_path_geometry.setDrawRange(0, frame_id);
+		updateCameraGeometry(3 * (frame_id - 1), 3 * frame_id);
+	}
+}
+
+export function updateCameraGeometry(start, end) {
+	let nb_update = end - start;
+	if (nb_update > 0) {
+		// Update buffers because wasm memory might grow.
+		camera_pose_attr.setArray(getCameraPoseBuffer());
+		camera_pose_attr.updateRange.offset = start;
+		camera_pose_attr.updateRange.count = nb_update;
+		camera_pose_attr.needsUpdate = true;
 	}
 }
 
