@@ -35,6 +35,8 @@ pub struct WasmTracker {
     associations: Vec<tum_rgbd::Association>,
     tracker: Option<track::Tracker>,
     pub change_keyframe: bool,
+    keyframes: Vec<DMatrix<u8>>,
+    current_keyframe_data: Vec<u8>,
 }
 
 /// Public methods, exported to JavaScript.
@@ -48,6 +50,8 @@ impl WasmTracker {
             associations: Vec::new(),
             tracker: None,
             change_keyframe: false,
+            keyframes: vec![],
+            current_keyframe_data: vec![0; 320 * 240 * 4],
         }
     }
 
@@ -57,6 +61,10 @@ impl WasmTracker {
 
     pub fn memory_pos(&self) -> *const u8 {
         self.tar_buffer.as_ptr()
+    }
+
+    pub fn current_keyframe_data(&self) -> *const u8 {
+        self.current_keyframe_data.as_ptr()
     }
 
     pub fn build_entries_map(&mut self) {
@@ -96,11 +104,20 @@ impl WasmTracker {
                 .expect("81");
         let depth_time = self.associations[0].depth_timestamp;
         let img_time = self.associations[0].color_timestamp;
-        self.tracker = Some(config.init(depth_time, &depth_map, img_time, img));
+        let tracker = config.init(depth_time, &depth_map, img_time, img);
+        let mut keyframe_img = tracker.keyframe_img();
+        keyframe_img = keyframe_img.transpose();
+        update_current_kf_data(&mut self.current_keyframe_data, &keyframe_img);
+        self.keyframes.push(keyframe_img);
+        self.tracker = Some(tracker);
         self.change_keyframe = true;
 
         // Return the number of frames contained in the archive.
         self.associations.len()
+    }
+
+    pub fn pick_current_kf_data(&mut self, index: usize) {
+        update_current_kf_data(&mut self.current_keyframe_data, &self.keyframes[index]);
     }
 
     pub fn track(&mut self, frame_id: usize) -> String {
@@ -117,12 +134,32 @@ impl WasmTracker {
                 img,
             );
             let (timestamp, pose) = t.current_frame();
+            if self.change_keyframe {
+                let mut keyframe_img = t.keyframe_img();
+                keyframe_img = keyframe_img.transpose();
+                self.keyframes.push(keyframe_img);
+            }
             return (tum_rgbd::Frame { timestamp, pose }).to_string();
         };
 
         // Return formatted camera pose.
         unreachable!()
     }
+}
+
+/// Update self.current_keyframe_data.
+/// The DMatrix in argument must already have been transposed to have the same
+/// components order in column major.
+fn update_current_kf_data(current_data: &mut [u8], kf: &DMatrix<u8>) {
+    current_data
+        .chunks_mut(4)
+        .zip(kf.iter())
+        .for_each(|(slice, &value)| {
+            slice[0] = value;
+            slice[1] = value;
+            slice[2] = value;
+            slice[3] = 255;
+        });
 }
 
 /// Create camera depending on `camera_id` command line argument.

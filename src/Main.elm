@@ -8,7 +8,7 @@ import Element.Border as Border
 import Element.Events
 import Element.Input as Input
 import Html exposing (Html)
-import Html.Attributes exposing (attribute)
+import Html.Attributes as Attr exposing (attribute)
 import Icon
 import Json.Encode exposing (Value)
 import Packages.Device as Device exposing (Device)
@@ -208,8 +208,19 @@ renderer size nb_frames s =
         [ width fill
         , height fill
         , Background.color (rgb255 255 220 255)
+        , Element.inFront keyframeCanvas
         ]
         (Element.html (customRenderer size nb_frames s))
+
+
+keyframeCanvas : Element msg
+keyframeCanvas =
+    el [ width (px 320), height (px 240) ] (Element.html htmlKeyframeCanvas)
+
+
+htmlKeyframeCanvas : Html msg
+htmlKeyframeCanvas =
+    Html.canvas [ Attr.id "canvas-kf", Attr.width 320, Attr.height 240, Attr.style "display" "block" ] []
 
 
 customRenderer : Device.Size -> Int -> Slider -> Html msg
@@ -217,8 +228,9 @@ customRenderer { width, height } nb_frames s =
     Html.node "custom-renderer"
         [ attribute "width" (String.fromFloat width)
         , attribute "height" (String.fromFloat height)
-        , attribute "current" (String.fromInt s.current)
+        , attribute "canvas-id" "canvas-kf"
         , attribute "nb-frames" (String.fromInt nb_frames)
+        , attribute "current" (String.fromInt s.current)
         ]
         []
 
@@ -260,7 +272,7 @@ abledButton msg title icon =
             [ Element.mouseOver [ Background.color Style.hoveredItemBG ]
             , Element.pointer
             , Element.Events.onClick msg
-            , Element.htmlAttribute (Html.Attributes.title title)
+            , Element.htmlAttribute (Attr.title title)
             ]
 
 
@@ -304,7 +316,7 @@ loadDatasetButton loadDatasetMsg =
                 |> Element.html
                 |> Element.el
                     [ Element.mouseOver [ Background.color Style.hoveredItemBG ]
-                    , Element.htmlAttribute (Html.Attributes.title "Load dataset archive")
+                    , Element.htmlAttribute (Attr.title "Load dataset archive")
                     ]
 
         invisibleInput =
@@ -321,8 +333,8 @@ iconLabelAttributes : String -> List (Html.Attribute msg)
 iconLabelAttributes uniqueId =
     -- need to manually add a cursor because the class given by elm-ui
     -- gets overwritten by user agent stylesheet for a label
-    Html.Attributes.for uniqueId
-        :: Html.Attributes.style "cursor" "pointer"
+    Attr.for uniqueId
+        :: Attr.style "cursor" "pointer"
         :: centerFlexAttributes 100
 
 
@@ -332,9 +344,9 @@ centerFlexAttributes size =
         sizeString =
             String.fromInt size ++ "px"
     in
-    [ Html.Attributes.style "width" sizeString
-    , Html.Attributes.style "height" sizeString
-    , Html.Attributes.style "display" "flex"
-    , Html.Attributes.style "align-items" "center"
-    , Html.Attributes.style "justify-content" "center"
+    [ Attr.style "width" sizeString
+    , Attr.style "height" sizeString
+    , Attr.style "display" "flex"
+    , Attr.style "align-items" "center"
+    , Attr.style "justify-content" "center"
     ]

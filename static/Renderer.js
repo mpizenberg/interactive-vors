@@ -31,6 +31,9 @@ export let camera_path_geometry;
 // Current camera keyframe pose.
 export let current_camera_path_geometry;
 
+// Keyframe miniature canvas context.
+export let canvas_2d_ctx;
+
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.set(0, 0, -1);
@@ -96,6 +99,14 @@ async function load_wasm() {
 	renderer.domElement.style.display = "block";
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.update();
+}
+
+function updateCurrentKfImage(index) {
+	wasm_tracker.pick_current_kf_data(index);
+	let kf_img_data_ptr = wasm_tracker.current_keyframe_data();
+	let kf_img_data = new Uint8ClampedArray(wasm.memory.buffer, kf_img_data_ptr, 4 * 320 * 240);
+	let image_data = new ImageData(kf_img_data, 320, 240);
+	canvas_2d_ctx.putImageData(image_data, 0, 0);
 }
 
 function getCameraPoseBuffer() {
@@ -193,7 +204,7 @@ class Renderer extends HTMLElement {
 	}
 
 	static get observedAttributes() {
-		return ['width', 'height', 'current', 'nb-frames'];
+		return ['width', 'height', 'canvas-id', 'nb-frames', 'current'];
 	}
 
 	attributeChangedCallback(name, oldValue, newValue) {
@@ -208,6 +219,10 @@ class Renderer extends HTMLElement {
 				this.height = +newValue;
 				onResize(this.width, this.height);
 				break;
+			case 'canvas-id':
+				if (newValue === oldValue) break;
+				canvas_2d_ctx = document.getElementById(newValue).getContext('2d');
+				break;
 			case 'nb-frames':
 				if (newValue === oldValue) break;
 				nb_frames = +newValue;
@@ -217,6 +232,7 @@ class Renderer extends HTMLElement {
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				updateCurrentPointCloud(+newValue);
 				updateCurrentCameraPoseKf(+newValue);
+				updateCurrentKfImage(+newValue);
 				break;
 		}
 	}
