@@ -173,7 +173,7 @@ subscriptions state =
         DatasetLoaded _ _ _ _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
-                , Browser.Events.onAnimationFrameDelta Track
+                , Ports.animationFrame Track
                 , Ports.newKeyFrame NewKeyFrame
                 ]
 

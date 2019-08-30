@@ -4,7 +4,8 @@
 
 
 port module Ports exposing
-    ( datasetLoaded
+    ( animationFrame
+    , datasetLoaded
     , exportObj
     , loadDataset
     , newKeyFrame
@@ -23,6 +24,9 @@ port loadDataset : Value -> Cmd msg
 
 
 port datasetLoaded : (Int -> msg) -> Sub msg
+
+
+port animationFrame : (Float -> msg) -> Sub msg
 
 
 port newKeyFrame : (Int -> msg) -> Sub msg

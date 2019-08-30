@@ -10,6 +10,9 @@ export function activatePorts(app, containerSize) {
 		app.ports.resizes.send(containerSize())
 	);
 
+	// Replace elm Browser.onAnimationFrameDelta
+	startAnimationFrameLoop(app.ports.animationFrame);
+
 	app.ports.track.subscribe( () => {
 		Renderer.track();
 		if (Renderer.wasm_tracker.change_keyframe) {
@@ -69,6 +72,17 @@ export function activatePorts(app, containerSize) {
 		Renderer.wasm_tracker.build_entries_map();
 	}
 };
+
+function startAnimationFrameLoop(port) {
+	let timestamp = performance.now();
+	let loop = (time) => {
+		window.requestAnimationFrame(loop);
+		let delta = time - timestamp;
+		timestamp = time;
+		port.send(delta);
+	}
+	loop();
+}
 
 function download(filename, text) {
 	var element = document.createElement('a');
