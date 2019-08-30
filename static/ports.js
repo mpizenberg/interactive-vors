@@ -14,8 +14,8 @@ export function activatePorts(app, containerSize) {
 	startAnimationFrameLoop(app.ports.animationFrame);
 
 	app.ports.track.subscribe( () => {
-		Renderer.track();
-		if (Renderer.wasm_tracker.change_keyframe) {
+		let has_tracked = Renderer.track();
+		if (has_tracked && Renderer.wasm_tracker.change_keyframe) {
 			app.ports.newKeyFrame.send(0);
 		}
 	});

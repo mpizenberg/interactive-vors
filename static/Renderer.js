@@ -139,6 +139,7 @@ function renderLoop() {
 export function track() {
 	last_tracked_frame += 1;
 	trackFrame(last_tracked_frame, nb_frames);
+	return (last_tracked_frame < nb_frames);
 }
 
 function trackFrame(frame_id, nb_frames) {
