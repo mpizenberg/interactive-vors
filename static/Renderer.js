@@ -37,6 +37,7 @@ export let canvas_2d_ctx;
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.set(0, 0, -1);
+// camera.up.set( 0, -1, 0 );
 scene = new THREE.Scene();
 scene.background = new THREE.Color( 0x050505 );
 
@@ -64,14 +65,14 @@ async function load_wasm() {
 	let pos_mem_buffer = getPosMemBuffer(point_cloud, nb_particles);
 	pos_buffer_attr = new THREE.BufferAttribute(pos_mem_buffer, 3).setDynamic(true);
 	geometry.addAttribute("position", pos_buffer_attr);
-	let material = new THREE.PointsMaterial({size: 0.01, color: 0xffffff});
+	let material = new THREE.PointsMaterial({size: 1, sizeAttenuation: false, color: 0xffffff});
 	let particles = new THREE.Points(geometry, material);
 	particles.frustumCulled = false;
 	scene.add(particles);
 
 	// Add a second point cloud for current frame.
 	current_geometry.addAttribute("position", pos_buffer_attr);
-	let current_material = new THREE.PointsMaterial({size: 0.05, color: 0xff0000});
+	let current_material = new THREE.PointsMaterial({size: 4, sizeAttenuation: false, color: 0xff0000});
 	let current_particles = new THREE.Points(current_geometry, current_material);
 	current_particles.frustumCulled = false;
 	scene.add(current_particles);
@@ -80,14 +81,14 @@ async function load_wasm() {
 	let camera_pose_buffer = getCameraPoseBuffer();
 	camera_pose_attr = new THREE.BufferAttribute(camera_pose_buffer, 3).setDynamic(true);
 	camera_path_geometry.addAttribute('position', camera_pose_attr);
-	let camera_path_material = new THREE.PointsMaterial({color: 0xAA77DD, size: 0.03});
+	let camera_path_material = new THREE.PointsMaterial({color: 0xAA77DD, size: 2, sizeAttenuation: false});
 	let line = new THREE.Points(camera_path_geometry, camera_path_material);
 	line.frustumCulled = false;
 	scene.add(line);
 
 	// Add a geometry for the current keyframe camera.
 	current_camera_path_geometry.addAttribute('position', camera_pose_attr);
-	let current_camera_path_material = new THREE.PointsMaterial({color: 0xFF0000, size: 0.08});
+	let current_camera_path_material = new THREE.PointsMaterial({color: 0xFF0000, size: 10, sizeAttenuation: false});
 	let current_line = new THREE.Points(current_camera_path_geometry, current_camera_path_material);
 	current_line.frustumCulled = false;
 	scene.add(current_line);
@@ -98,6 +99,7 @@ async function load_wasm() {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.display = "block";
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	// controls.target = new THREE.Vector3(0, 0, 2);
 	controls.update();
 }
 
