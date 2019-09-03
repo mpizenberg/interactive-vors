@@ -20,7 +20,7 @@ import Packages.Device as Device
 port resizes : (Device.Size -> msg) -> Sub msg
 
 
-port loadDataset : Value -> Cmd msg
+port loadDataset : { file : Value, camera : String } -> Cmd msg
 
 
 port datasetLoaded : (Int -> msg) -> Sub msg

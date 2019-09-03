@@ -32,11 +32,12 @@ export function activatePorts(app, containerSize) {
 	
 	// Set up file reader.
 	let file_reader = new FileReader();
+	let camera_model = "icl";
 	file_reader.onload = () => {
 		console.log("Transfering tar data to wasm memory ...");
 		transferContent(file_reader.result);
 		console.log("Initializing tracker with first image ...");
-		const nb_frames = Renderer.wasm_tracker.init("icl");
+		const nb_frames = Renderer.wasm_tracker.init(camera_model);
 		console.log("Rendering first frame point cloud ...");
 		// Update point cloud.
 		let start_valid = Renderer.end_valid;
@@ -55,7 +56,8 @@ export function activatePorts(app, containerSize) {
 	}
 
 	// Transfer archive data to wasm when the file is loaded.
-	app.ports.loadDataset.subscribe(archive => {
+	app.ports.loadDataset.subscribe(({file: archive, camera: cam}) => {
+		camera_model = cam;
 		console.log("Loading tar archive ...");
 		file_reader.readAsArrayBuffer(archive);
 	});

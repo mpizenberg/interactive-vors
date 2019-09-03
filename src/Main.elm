@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Browser.Events
-import Element exposing (Element, centerY, el, fill, height, px, rgb255, width)
+import Element exposing (Element, centerX, centerY, el, fill, height, px, rgb255, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events
@@ -20,7 +20,7 @@ import Style
 main : Program Device.Size State Msg
 main =
     Browser.element
-        { init = \size -> ( Initial (Device.classify size), Cmd.none )
+        { init = \size -> ( Initial (Device.classify size) (Camera "icl"), Cmd.none )
         , view = view
         , update = update
         , subscriptions = subscriptions
@@ -28,8 +28,12 @@ main =
 
 
 type State
-    = Initial Device
+    = Initial Device Camera
     | DatasetLoaded Device Int Slider Bool Fps
+
+
+type Camera
+    = Camera String
 
 
 type alias Fps =
@@ -58,6 +62,7 @@ initialSlider =
 type Msg
     = Track Float
     | Pick Float
+    | SelectCamera Camera
     | LoadDataset Value
     | DatasetLoadedMsg Int
     | WindowResizes Device.Size
@@ -69,10 +74,13 @@ type Msg
 update : Msg -> State -> ( State, Cmd Msg )
 update msg model =
     case ( msg, model ) of
-        ( LoadDataset jsValue, Initial _ ) ->
-            ( model, Ports.loadDataset jsValue )
+        ( SelectCamera camera, Initial device _ ) ->
+            ( Initial device camera, Cmd.none )
 
-        ( DatasetLoadedMsg nb_frames, Initial device ) ->
+        ( LoadDataset jsValue, Initial _ (Camera camera) ) ->
+            ( model, Ports.loadDataset { file = jsValue, camera = camera } )
+
+        ( DatasetLoadedMsg nb_frames, Initial device _ ) ->
             ( DatasetLoaded device nb_frames initialSlider False (Fps 60 60 60 0), Cmd.none )
 
         ( Track delta, DatasetLoaded device nb_frames slid play fps ) ->
@@ -99,8 +107,8 @@ update msg model =
             ( model, Ports.exportObj () )
 
         -- Window resizes
-        ( WindowResizes size, Initial device ) ->
-            ( Initial { device | size = size }, Cmd.none )
+        ( WindowResizes size, Initial device camera ) ->
+            ( Initial { device | size = size } camera, Cmd.none )
 
         ( WindowResizes size, DatasetLoaded device nb_frames slid play fps ) ->
             ( DatasetLoaded { device | size = size } nb_frames slid play fps, Cmd.none )
@@ -164,7 +172,7 @@ updateFps delta fps =
 subscriptions : State -> Sub Msg
 subscriptions state =
     case state of
-        Initial _ ->
+        Initial _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
                 , Ports.datasetLoaded DatasetLoadedMsg
@@ -186,8 +194,8 @@ view model =
 appLayout : State -> Element Msg
 appLayout model =
     case model of
-        Initial _ ->
-            loadDatasetButton LoadDataset
+        Initial _ camera ->
+            initialLayout camera
 
         DatasetLoaded device nb_frames slid play fps ->
             let
@@ -200,6 +208,24 @@ appLayout model =
                 [ renderer rendererSize nb_frames slid
                 , bottomToolbar slid play fps.stable
                 ]
+
+
+initialLayout : Camera -> Element Msg
+initialLayout camera =
+    Element.column [ centerX, centerY, Element.spacing 30 ]
+        [ Input.radio []
+            { onChange = SelectCamera
+            , selected = Just camera
+            , label = Input.labelAbove [] (Element.text "Camera model:")
+            , options =
+                [ Input.option (Camera "icl") (Element.text "ICL NUIM synthetic dataset")
+                , Input.option (Camera "fr1") (Element.text "TUM Freiburg 1")
+                , Input.option (Camera "fr2") (Element.text "TUM Freiburg 2")
+                , Input.option (Camera "fr3") (Element.text "TUM Freiburg 3")
+                ]
+            }
+        , Element.column [] [ Element.text "Dataset to load:", loadDatasetButton LoadDataset ]
+        ]
 
 
 renderer : Device.Size -> Int -> Slider -> Element msg
