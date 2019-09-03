@@ -224,7 +224,14 @@ class Renderer extends HTMLElement {
 				break;
 			case 'canvas-id':
 				if (newValue === oldValue) break;
-				canvas_2d_ctx = document.getElementById(newValue).getContext('2d');
+				if (oldValue == null) { // wait for DOM to be actually ready.
+					requestAnimationFrame(() => {
+						canvas_2d_ctx = document.getElementById(newValue).getContext('2d');
+						updateCurrentKfImage(+newValue);
+					});
+				} else {
+					canvas_2d_ctx = document.getElementById(newValue).getContext('2d');
+				}
 				break;
 			case 'nb-frames':
 				if (newValue === oldValue) break;
@@ -235,6 +242,7 @@ class Renderer extends HTMLElement {
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				updateCurrentPointCloud(+newValue);
 				updateCurrentCameraPoseKf(+newValue);
+				if (oldValue == null) break;
 				updateCurrentKfImage(+newValue);
 				break;
 		}
