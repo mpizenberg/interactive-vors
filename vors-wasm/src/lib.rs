@@ -15,6 +15,7 @@ use vors::core::camera::Intrinsics;
 use vors::core::track::inverse_compositional as track;
 use vors::dataset::tum_rgbd;
 use vors::misc::interop;
+use vors::misc::type_aliases::Iso3;
 
 use png_decoder::png as png_me;
 
@@ -37,6 +38,7 @@ pub struct WasmTracker {
     pub change_keyframe: bool,
     keyframes: Vec<DMatrix<u8>>,
     current_keyframe_data: Vec<u8>,
+    poses_history: Vec<Iso3>,
 }
 
 /// Public methods, exported to JavaScript.
@@ -52,6 +54,7 @@ impl WasmTracker {
             change_keyframe: false,
             keyframes: vec![],
             current_keyframe_data: vec![0; 320 * 240 * 4],
+            poses_history: vec![],
         }
     }
 
@@ -109,6 +112,11 @@ impl WasmTracker {
         keyframe_img = keyframe_img.transpose();
         update_current_kf_data(&mut self.current_keyframe_data, &keyframe_img);
         self.keyframes.push(keyframe_img);
+
+        // Push initial pose to history.
+        let (_, pose) = tracker.current_frame();
+        self.poses_history.push(pose);
+
         self.tracker = Some(tracker);
         self.change_keyframe = true;
 
@@ -118,6 +126,29 @@ impl WasmTracker {
 
     pub fn pick_current_kf_data(&mut self, index: usize) {
         update_current_kf_data(&mut self.current_keyframe_data, &self.keyframes[index]);
+    }
+
+    pub fn reset_at(&mut self, frame_id: usize, keyframe_id: usize) {
+        let config = self.tracker.as_ref().expect("reset_kf").config().clone();
+        let (depth_map, img) = _read_image_pair_bis(
+            &self.associations[frame_id],
+            &self.tar_buffer,
+            &self.entries,
+        )
+        .expect("81");
+        let depth_time = self.associations[frame_id].depth_timestamp;
+        let img_time = self.associations[frame_id].color_timestamp;
+        let mut tracker = config.init(depth_time, &depth_map, img_time, img);
+        // Reset the pose to the one of the chosen keyframe.
+        tracker.reset_pose(self.poses_history[frame_id]);
+
+        let mut keyframe_img = tracker.keyframe_img();
+        keyframe_img = keyframe_img.transpose();
+        update_current_kf_data(&mut self.current_keyframe_data, &keyframe_img);
+        self.keyframes.resize(keyframe_id + 1, DMatrix::zeros(0, 0));
+        self.poses_history.resize(frame_id + 1, Iso3::identity());
+        self.tracker = Some(tracker);
+        self.change_keyframe = true;
     }
 
     pub fn track(&mut self, frame_id: usize) -> String {
@@ -139,6 +170,7 @@ impl WasmTracker {
                 keyframe_img = keyframe_img.transpose();
                 self.keyframes.push(keyframe_img);
             }
+            self.poses_history.push(pose);
             return (tum_rgbd::Frame { timestamp, pose }).to_string();
         };
 
@@ -295,6 +327,14 @@ impl CameraPath {
         self.indices_kf[id] / 3
     }
 
+    /// Reset CameraPath as if the given keyframe was the last one.
+    /// Return the frame id of that keyframe.
+    pub fn reset_kf(&mut self, kf_id: usize) -> usize {
+        self.indices_kf.resize(kf_id + 1, 0);
+        self.end = self.indices_kf[kf_id] + 3;
+        self.index_kf(kf_id)
+    }
+
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) {
         let (_, pose) = wasm_tracker
             .tracker
@@ -348,6 +388,14 @@ impl PointCloud {
 
     pub fn points(&self) -> *const f32 {
         self.points.as_ptr()
+    }
+
+    /// Reset point cloud as if given keyframe was the last one.
+    /// Return the limit of valid points in buffer.
+    pub fn reset_kf(&mut self, kf_id: usize) -> usize {
+        self.sections.resize(kf_id + 1, (0, 0));
+        self.end = self.sections[kf_id].1;
+        self.end
     }
 
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) -> usize {

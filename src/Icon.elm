@@ -9,8 +9,10 @@ module Icon exposing
     ( boundingBox
     , chevronLeft
     , chevronRight
+    , database
     , defaultAttributes
     , download
+    , from
     , image
     , line
     , move
@@ -22,6 +24,7 @@ module Icon exposing
     , settings
     , toHtml
     , trash2
+    , until
     , zoomFit
     , zoomIn
     , zoomOut
@@ -97,6 +100,30 @@ point =
 
 
 -- Feather icons ###########################################
+
+
+database : List (Svg msg)
+database =
+    [ Svg.ellipse [ cx "12", cy "5", rx "9", ry "3" ] []
+    , Svg.path [ d "M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" ] []
+    , Svg.path [ d "M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" ] []
+    ]
+
+
+until : List (Svg msg)
+until =
+    [ Svg.path [ d "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" ] []
+    , Svg.polyline [ points "10 17 15 12 10 7" ] []
+    , Svg.line [ x1 "15", y1 "12", x2 "3", y2 "12" ] []
+    ]
+
+
+from : List (Svg msg)
+from =
+    [ Svg.path [ d "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" ] []
+    , Svg.polyline [ points "16 17 21 12 16 7" ] []
+    , Svg.line [ x1 "21", y1 "12", x2 "9", y2 "12" ] []
+    ]
 
 
 pause : List (Svg msg)

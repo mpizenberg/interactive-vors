@@ -1,11 +1,11 @@
 module Main exposing (main)
 
 import Browser
-import Browser.Events
 import Element exposing (Element, centerX, centerY, el, fill, height, px, rgb255, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events
+import Element.Font
 import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes as Attr exposing (attribute)
@@ -68,6 +68,7 @@ type Msg
     | WindowResizes Device.Size
     | NewKeyFrame Int
     | ToogleTracking
+    | RestartFrom Int
     | ExportObj
 
 
@@ -102,6 +103,16 @@ update msg model =
 
         ( ToogleTracking, DatasetLoaded device nb_frames slid play fps ) ->
             ( DatasetLoaded device nb_frames slid (not play) fps, Cmd.none )
+
+        ( RestartFrom keyframe, DatasetLoaded device nb_frames _ play fps ) ->
+            let
+                newSlider =
+                    { min = 0
+                    , max = keyframe
+                    , current = keyframe
+                    }
+            in
+            ( DatasetLoaded device nb_frames newSlider play fps, Ports.restartFrom keyframe )
 
         ( ExportObj, DatasetLoaded _ _ _ _ _ ) ->
             ( model, Ports.exportObj () )
@@ -264,7 +275,7 @@ customRenderer { width, height } nb_frames s =
 bottomToolbar : Slider -> Bool -> Int -> Element Msg
 bottomToolbar slid play fps =
     Element.row [ width fill, height (px 50), Element.padding 10, Element.spacing 10 ]
-        [ fpsViewer fps, playPauseButton play, slider slid, exportObjButton ]
+        [ fpsViewer fps, playPauseButton play, slider slid, restartFromButton play slid.current, exportObjButton ]
 
 
 fpsViewer : Int -> Element msg
@@ -290,6 +301,15 @@ exportObjButton =
     abledButton ExportObj "Export to obj file" (Icon.toHtml 30 Icon.download)
 
 
+restartFromButton : Bool -> Int -> Element Msg
+restartFromButton play current_frame =
+    if play then
+        disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+
+    else
+        abledButton (RestartFrom current_frame) "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+
+
 abledButton : msg -> String -> Html msg -> Element msg
 abledButton msg title icon =
     Html.div (centerFlexAttributes 50) [ icon ]
@@ -298,6 +318,16 @@ abledButton msg title icon =
             [ Element.mouseOver [ Background.color Style.hoveredItemBG ]
             , Element.pointer
             , Element.Events.onClick msg
+            , Element.htmlAttribute (Attr.title title)
+            ]
+
+
+disabledButton : String -> Html msg -> Element msg
+disabledButton title icon =
+    Html.div (centerFlexAttributes 50) [ icon ]
+        |> Element.html
+        |> Element.el
+            [ Element.Font.color Style.disabledText
             , Element.htmlAttribute (Attr.title title)
             ]
 
@@ -337,7 +367,7 @@ loadDatasetButton loadDatasetMsg =
             "load-dataset"
 
         icon =
-            [ Icon.toHtml 60 Icon.settings ]
+            [ Icon.toHtml 60 Icon.database ]
                 |> Html.label (iconLabelAttributes uniqueId)
                 |> Element.html
                 |> Element.el

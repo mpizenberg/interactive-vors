@@ -19,6 +19,10 @@ export function activatePorts(app, containerSize) {
 			app.ports.newKeyFrame.send(0);
 		}
 	});
+	
+	app.ports.restartFrom.subscribe( keyframe => {
+		Renderer.restartFromKeyframe(keyframe);
+	});
 
 	app.ports.exportObj.subscribe( () => {
 		let obj_vec = [];

@@ -10,6 +10,7 @@ port module Ports exposing
     , loadDataset
     , newKeyFrame
     , resizes
+    , restartFrom
     , track
     )
 
@@ -33,6 +34,9 @@ port newKeyFrame : (Int -> msg) -> Sub msg
 
 
 port track : () -> Cmd msg
+
+
+port restartFrom : Int -> Cmd msg
 
 
 port exportObj : () -> Cmd msg

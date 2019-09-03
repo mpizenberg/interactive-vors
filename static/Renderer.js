@@ -103,6 +103,14 @@ async function load_wasm() {
 	controls.update();
 }
 
+export function restartFromKeyframe(index) {
+	end_valid = point_cloud.reset_kf(index);
+	last_tracked_frame = camera_path.reset_kf(index);
+	wasm_tracker.reset_at(last_tracked_frame, index);
+	geometry.setDrawRange(0, end_valid / 3);
+	camera_path_geometry.setDrawRange(0, last_tracked_frame);
+}
+
 function updateCurrentKfImage(index) {
 	wasm_tracker.pick_current_kf_data(index);
 	let kf_img_data_ptr = wasm_tracker.current_keyframe_data();
