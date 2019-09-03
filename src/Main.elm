@@ -29,7 +29,12 @@ main =
 
 type State
     = Initial Device Camera
-    | DatasetLoaded Device Int Slider Bool Fps
+    | DatasetLoaded Device Int Slider Bool Fps Fixer
+
+
+type Fixer
+    = NoFix
+    | FixFromKeyframe Int
 
 
 type Camera
@@ -68,6 +73,7 @@ type Msg
     | WindowResizes Device.Size
     | NewKeyFrame Int
     | ToogleTracking
+    | KeepUntil Int
     | RestartFrom Int
     | ExportObj
 
@@ -82,12 +88,12 @@ update msg model =
             ( model, Ports.loadDataset { file = jsValue, camera = camera } )
 
         ( DatasetLoadedMsg nb_frames, Initial device _ ) ->
-            ( DatasetLoaded device nb_frames initialSlider False (Fps 60 60 60 0), Cmd.none )
+            ( DatasetLoaded device nb_frames initialSlider False (Fps 60 60 60 0) NoFix, Cmd.none )
 
-        ( Track delta, DatasetLoaded device nb_frames slid play fps ) ->
+        ( Track delta, DatasetLoaded device nb_frames slid play fps fixer ) ->
             let
                 newModel =
-                    DatasetLoaded device nb_frames slid play (updateFps delta fps)
+                    DatasetLoaded device nb_frames slid play (updateFps delta fps) fixer
             in
             if play then
                 ( newModel, Ports.track () )
@@ -95,16 +101,19 @@ update msg model =
             else
                 ( newModel, Cmd.none )
 
-        ( Pick value, DatasetLoaded device nb_frames slid play fps ) ->
-            ( DatasetLoaded device nb_frames { slid | current = round value } play fps, Cmd.none )
+        ( Pick value, DatasetLoaded device nb_frames slid play fps fixer ) ->
+            ( DatasetLoaded device nb_frames { slid | current = round value } play fps fixer, Cmd.none )
 
-        ( NewKeyFrame _, DatasetLoaded device nb_frames slid play fps ) ->
-            ( DatasetLoaded device nb_frames (updateTimeline slid) play fps, Cmd.none )
+        ( NewKeyFrame _, DatasetLoaded device nb_frames slid play fps fixer ) ->
+            ( DatasetLoaded device nb_frames (updateTimeline slid) play fps fixer, Cmd.none )
 
-        ( ToogleTracking, DatasetLoaded device nb_frames slid play fps ) ->
-            ( DatasetLoaded device nb_frames slid (not play) fps, Cmd.none )
+        ( ToogleTracking, DatasetLoaded device nb_frames slid play fps fixer ) ->
+            ( DatasetLoaded device nb_frames slid (not play) fps fixer, Cmd.none )
 
-        ( RestartFrom keyframe, DatasetLoaded device nb_frames _ play fps ) ->
+        ( KeepUntil keyframe, DatasetLoaded device nb_frames slid play fps _ ) ->
+            ( DatasetLoaded device nb_frames slid play fps (FixFromKeyframe keyframe), Cmd.none )
+
+        ( RestartFrom keyframe, DatasetLoaded device nb_frames _ play fps (FixFromKeyframe _) ) ->
             let
                 newSlider =
                     { min = 0
@@ -112,17 +121,17 @@ update msg model =
                     , current = keyframe
                     }
             in
-            ( DatasetLoaded device nb_frames newSlider play fps, Ports.restartFrom keyframe )
+            ( DatasetLoaded device nb_frames newSlider play fps NoFix, Ports.restartFrom keyframe )
 
-        ( ExportObj, DatasetLoaded _ _ _ _ _ ) ->
+        ( ExportObj, DatasetLoaded _ _ _ _ _ _ ) ->
             ( model, Ports.exportObj () )
 
         -- Window resizes
         ( WindowResizes size, Initial device camera ) ->
             ( Initial { device | size = size } camera, Cmd.none )
 
-        ( WindowResizes size, DatasetLoaded device nb_frames slid play fps ) ->
-            ( DatasetLoaded { device | size = size } nb_frames slid play fps, Cmd.none )
+        ( WindowResizes size, DatasetLoaded device nb_frames slid play fps fixer ) ->
+            ( DatasetLoaded { device | size = size } nb_frames slid play fps fixer, Cmd.none )
 
         _ ->
             ( model, Cmd.none )
@@ -189,7 +198,7 @@ subscriptions state =
                 , Ports.datasetLoaded DatasetLoadedMsg
                 ]
 
-        DatasetLoaded _ _ _ _ _ ->
+        DatasetLoaded _ _ _ _ _ _ ->
             Sub.batch
                 [ Ports.resizes WindowResizes
                 , Ports.animationFrame Track
@@ -208,7 +217,7 @@ appLayout model =
         Initial _ camera ->
             initialLayout camera
 
-        DatasetLoaded device nb_frames slid play fps ->
+        DatasetLoaded device nb_frames slid play fps fixer ->
             let
                 rendererSize =
                     { width = device.size.width
@@ -217,7 +226,7 @@ appLayout model =
             in
             Element.column [ width fill, height fill, Element.clip ]
                 [ renderer rendererSize nb_frames slid
-                , bottomToolbar slid play fps.stable
+                , bottomToolbar slid play fps.stable fixer
                 ]
 
 
@@ -272,10 +281,16 @@ customRenderer { width, height } nb_frames s =
         []
 
 
-bottomToolbar : Slider -> Bool -> Int -> Element Msg
-bottomToolbar slid play fps =
+bottomToolbar : Slider -> Bool -> Int -> Fixer -> Element Msg
+bottomToolbar slid play fps fixer =
     Element.row [ width fill, height (px 50), Element.padding 10, Element.spacing 10 ]
-        [ fpsViewer fps, playPauseButton play, slider slid, restartFromButton play slid.current, exportObjButton ]
+        [ fpsViewer fps
+        , playPauseButton play
+        , slider fixer slid
+        , keepUntilButton play slid.current
+        , restartFromButton play slid.current fixer
+        , exportObjButton
+        ]
 
 
 fpsViewer : Int -> Element msg
@@ -301,13 +316,23 @@ exportObjButton =
     abledButton ExportObj "Export to obj file" (Icon.toHtml 30 Icon.download)
 
 
-restartFromButton : Bool -> Int -> Element Msg
-restartFromButton play current_frame =
+keepUntilButton : Bool -> Int -> Element Msg
+keepUntilButton play current_frame =
     if play then
-        disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+        disabledButton "Keep until current frame" (Icon.toHtml 30 Icon.until)
 
     else
-        abledButton (RestartFrom current_frame) "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+        abledButton (KeepUntil current_frame) "Keep until current frame" (Icon.toHtml 30 Icon.until)
+
+
+restartFromButton : Bool -> Int -> Fixer -> Element Msg
+restartFromButton play current_frame fixer =
+    case ( play, fixer ) of
+        ( False, FixFromKeyframe _ ) ->
+            abledButton (RestartFrom current_frame) "Restart from current frame" (Icon.toHtml 30 Icon.from)
+
+        _ ->
+            disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
 
 
 abledButton : msg -> String -> Html msg -> Element msg
@@ -332,8 +357,17 @@ disabledButton title icon =
             ]
 
 
-slider : Slider -> Element Msg
-slider s =
+slider : Fixer -> Slider -> Element Msg
+slider fixer s =
+    let
+        fixerMarker =
+            case fixer of
+                NoFix ->
+                    Element.none
+
+                FixFromKeyframe kf ->
+                    fixerMarkeElement kf s.max
+    in
     Input.slider
         [ height fill
         , width fill
@@ -349,6 +383,7 @@ slider s =
                 ]
                 Element.none
             )
+        , Element.behindContent fixerMarker
         ]
         { onChange = Pick
         , label = Input.labelHidden "slider"
@@ -358,6 +393,15 @@ slider s =
         , thumb = Input.defaultThumb
         , step = Just 1
         }
+
+
+fixerMarkeElement : Int -> Int -> Element msg
+fixerMarkeElement kf sliderMax =
+    Element.row [ width fill, height fill, Element.paddingXY 7 0 ]
+        [ el [ width (Element.fillPortion kf) ] Element.none
+        , el [ width (px 3), height fill, Background.color (rgb255 255 0 0) ] Element.none
+        , el [ width (Element.fillPortion (sliderMax - kf)) ] Element.none
+        ]
 
 
 loadDatasetButton : (Value -> msg) -> Element msg
