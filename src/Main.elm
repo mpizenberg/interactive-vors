@@ -74,7 +74,7 @@ type Msg
     | NewKeyFrame Int
     | ToogleTracking
     | KeepUntil Int
-    | RestartFrom Int
+    | RestartFrom Int Int
     | ExportObj
 
 
@@ -113,15 +113,17 @@ update msg model =
         ( KeepUntil keyframe, DatasetLoaded device nb_frames slid play fps _ ) ->
             ( DatasetLoaded device nb_frames slid play fps (FixFromKeyframe keyframe), Cmd.none )
 
-        ( RestartFrom keyframe, DatasetLoaded device nb_frames _ play fps (FixFromKeyframe _) ) ->
+        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (FixFromKeyframe _) ) ->
             let
                 newSlider =
                     { min = 0
-                    , max = keyframe
-                    , current = keyframe
+                    , max = keyframe - 1
+                    , current = keyframe - 1
                     }
             in
-            ( DatasetLoaded device nb_frames newSlider play fps NoFix, Ports.restartFrom keyframe )
+            ( DatasetLoaded device nb_frames newSlider play fps NoFix
+            , Ports.restartFrom { keepUntil = baseKf, restartFrom = keyframe }
+            )
 
         ( ExportObj, DatasetLoaded _ _ _ _ _ _ ) ->
             ( model, Ports.exportObj () )
@@ -328,8 +330,12 @@ keepUntilButton play current_frame =
 restartFromButton : Bool -> Int -> Fixer -> Element Msg
 restartFromButton play current_frame fixer =
     case ( play, fixer ) of
-        ( False, FixFromKeyframe _ ) ->
-            abledButton (RestartFrom current_frame) "Restart from current frame" (Icon.toHtml 30 Icon.from)
+        ( False, FixFromKeyframe baseKf ) ->
+            if current_frame > baseKf then
+                abledButton (RestartFrom baseKf current_frame) "Restart from current frame" (Icon.toHtml 30 Icon.from)
+
+            else
+                disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
 
         _ ->
             disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)

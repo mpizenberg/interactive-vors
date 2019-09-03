@@ -20,8 +20,8 @@ export function activatePorts(app, containerSize) {
 		}
 	});
 	
-	app.ports.restartFrom.subscribe( keyframe => {
-		Renderer.restartFromKeyframe(keyframe);
+	app.ports.restartFrom.subscribe( ({keepUntil: baseKf, restartFrom: keyframe}) => {
+		Renderer.restartFromKeyframe(baseKf, keyframe);
 	});
 
 	app.ports.exportObj.subscribe( () => {

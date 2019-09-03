@@ -128,25 +128,31 @@ impl WasmTracker {
         update_current_kf_data(&mut self.current_keyframe_data, &self.keyframes[index]);
     }
 
-    pub fn reset_at(&mut self, frame_id: usize, keyframe_id: usize) {
+    pub fn reset_at(
+        &mut self,
+        base_frame_id: usize,
+        base_kf_id: usize,
+        frame_id: usize,
+        keyframe_id: usize,
+    ) {
         let config = self.tracker.as_ref().expect("reset_kf").config().clone();
         let (depth_map, img) = _read_image_pair_bis(
-            &self.associations[frame_id],
+            &self.associations[base_frame_id],
             &self.tar_buffer,
             &self.entries,
         )
         .expect("81");
-        let depth_time = self.associations[frame_id].depth_timestamp;
-        let img_time = self.associations[frame_id].color_timestamp;
+        let depth_time = self.associations[base_frame_id].depth_timestamp;
+        let img_time = self.associations[base_frame_id].color_timestamp;
         let mut tracker = config.init(depth_time, &depth_map, img_time, img);
         // Reset the pose to the one of the chosen keyframe.
-        tracker.reset_pose(self.poses_history[frame_id]);
+        tracker.reset_pose(self.poses_history[base_frame_id]);
 
         let mut keyframe_img = tracker.keyframe_img();
         keyframe_img = keyframe_img.transpose();
         update_current_kf_data(&mut self.current_keyframe_data, &keyframe_img);
-        self.keyframes.resize(keyframe_id + 1, DMatrix::zeros(0, 0));
-        self.poses_history.resize(frame_id + 1, Iso3::identity());
+        self.keyframes.resize(keyframe_id, DMatrix::zeros(0, 0));
+        self.poses_history.resize(frame_id, Iso3::identity());
         self.tracker = Some(tracker);
         self.change_keyframe = true;
     }
@@ -330,9 +336,11 @@ impl CameraPath {
     /// Reset CameraPath as if the given keyframe was the last one.
     /// Return the frame id of that keyframe.
     pub fn reset_kf(&mut self, kf_id: usize) -> usize {
-        self.indices_kf.resize(kf_id + 1, 0);
-        self.end = self.indices_kf[kf_id] + 3;
-        self.index_kf(kf_id)
+        console_log!("self.end = ...");
+        self.end = self.indices_kf[kf_id];
+        console_log!("resize");
+        self.indices_kf.resize(kf_id, 0);
+        self.index_kf(kf_id - 1)
     }
 
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) {
@@ -393,8 +401,8 @@ impl PointCloud {
     /// Reset point cloud as if given keyframe was the last one.
     /// Return the limit of valid points in buffer.
     pub fn reset_kf(&mut self, kf_id: usize) -> usize {
-        self.sections.resize(kf_id + 1, (0, 0));
-        self.end = self.sections[kf_id].1;
+        self.sections.resize(kf_id, (0, 0));
+        self.end = self.sections[kf_id - 1].1;
         self.end
     }
 

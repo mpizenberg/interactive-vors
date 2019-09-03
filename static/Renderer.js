@@ -103,12 +103,18 @@ async function load_wasm() {
 	controls.update();
 }
 
-export function restartFromKeyframe(index) {
-	end_valid = point_cloud.reset_kf(index);
-	last_tracked_frame = camera_path.reset_kf(index);
-	wasm_tracker.reset_at(last_tracked_frame, index);
+export function restartFromKeyframe(baseKf, keyframe) {
+	assert(baseKf < keyframe, "Base keyframe >= restart keyframe");
+	end_valid = point_cloud.reset_kf(keyframe);
+	last_tracked_frame = camera_path.reset_kf(keyframe);
+	let base_frame = camera_path.index_kf(baseKf);
+	wasm_tracker.reset_at(base_frame, baseKf, last_tracked_frame, keyframe);
 	geometry.setDrawRange(0, end_valid / 3);
 	camera_path_geometry.setDrawRange(0, last_tracked_frame);
+}
+
+function assert(condition, message) {
+    if (!condition) { throw message || "Assertion failed"; }
 }
 
 function updateCurrentKfImage(index) {

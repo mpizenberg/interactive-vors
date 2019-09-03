@@ -36,7 +36,7 @@ port newKeyFrame : (Int -> msg) -> Sub msg
 port track : () -> Cmd msg
 
 
-port restartFrom : Int -> Cmd msg
+port restartFrom : { keepUntil : Int, restartFrom : Int } -> Cmd msg
 
 
 port exportObj : () -> Cmd msg
