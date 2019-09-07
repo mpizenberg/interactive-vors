@@ -10,6 +10,7 @@ import Element.Input as Input
 import Element.Keyed
 import Html exposing (Html)
 import Html.Attributes as Attr exposing (attribute)
+import Html.Events.Extra.Mouse as Mouse
 import Icon
 import Json.Encode exposing (Value)
 import Packages.Device as Device exposing (Device)
@@ -88,6 +89,8 @@ type Msg
     | PickReference Int
     | RestartFrom Int Int
     | ToggleInteractiveFix
+    | ClickRef ( Float, Float )
+    | ClickKey ( Float, Float )
     | ExportObj
 
 
@@ -138,6 +141,18 @@ update msg model =
             , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
             )
 
+        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (InteractiveFix _ _ refPoints keyPoints) ) ->
+            let
+                _ =
+                    Debug.log "Points in reference image:" (List.map .pos refPoints)
+
+                _ =
+                    Debug.log "Points in keyframe image:" (List.map .pos keyPoints)
+            in
+            ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
+            , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
+            )
+
         ( ToggleInteractiveFix, DatasetLoaded device nb_frames slid play fps (KeyframesPair k1 k2) ) ->
             ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 [] [])
             , Cmd.none
@@ -145,6 +160,16 @@ update msg model =
 
         ( ToggleInteractiveFix, DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 _ _) ) ->
             ( DatasetLoaded device nb_frames slid play fps (KeyframesPair k1 k2)
+            , Cmd.none
+            )
+
+        ( ClickRef pos, DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 ref key) ) ->
+            ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 (updatePoints pos ref) key)
+            , Cmd.none
+            )
+
+        ( ClickKey pos, DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 ref key) ) ->
+            ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 ref (updatePoints pos key))
             , Cmd.none
             )
 
@@ -160,6 +185,35 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+updatePoints : ( Float, Float ) -> List PointFix -> List PointFix
+updatePoints pos points =
+    case points of
+        [] ->
+            [ PointFix 0 (viridis 0) pos ]
+
+        _ :: [] ->
+            PointFix 1 (viridis 1) pos :: points
+
+        _ :: _ :: [] ->
+            PointFix 2 (viridis 2) pos :: points
+
+        _ ->
+            points
+
+
+viridis : Int -> Element.Color
+viridis id =
+    case id of
+        0 ->
+            Element.rgba255 73 45 116 0.8
+
+        1 ->
+            Element.rgba255 23 137 139 0.8
+
+        _ ->
+            Element.rgba255 145 214 81 0.8
 
 
 sliderRestart : Int -> Slider
@@ -318,20 +372,65 @@ renderer size nb_frames s fixer =
 
 interactiveReferenceCanvas : String -> String -> List PointFix -> Element Msg
 interactiveReferenceCanvas displayInteractive displayCanvas points =
-    el [ Element.inFront (interactiveSvg displayInteractive points), Element.moveDown 240 ] (referenceCanvas displayCanvas)
+    el
+        [ Element.inFront (interactiveSvg displayInteractive points)
+        , Element.moveDown 240
+        , Element.htmlAttribute (Mouse.onClick (\event -> ClickRef event.offsetPos))
+        ]
+        (referenceCanvas displayCanvas)
 
 
 interactiveKeyframeCanvas : String -> List PointFix -> Element Msg
 interactiveKeyframeCanvas display points =
-    el [ Element.inFront (interactiveSvg display points) ] keyframeCanvas
+    el
+        [ Element.inFront (interactiveSvg display points)
+        , Element.htmlAttribute (Mouse.onClick (\event -> ClickKey event.offsetPos))
+        ]
+        keyframeCanvas
 
 
 interactiveSvg : String -> List PointFix -> Element Msg
 interactiveSvg display points =
     Element.html <|
-        Svg.svg [ SvgA.width "320", SvgA.height "240", Attr.style "display" display ]
-            [ Svg.circle [ SvgA.cx "50", SvgA.cy "50", SvgA.r "50" ] []
+        Svg.svg
+            [ SvgA.width "320"
+            , SvgA.height "240"
+            , Attr.style "display" display
+            , Attr.style "pointer-events" "none"
             ]
+            (List.map drawCircle points)
+
+
+drawCircle : PointFix -> Svg.Svg msg
+drawCircle { color, pos } =
+    let
+        ( cx, cy ) =
+            pos
+    in
+    Svg.circle
+        [ SvgA.cx (String.fromFloat cx)
+        , SvgA.cy (String.fromFloat cy)
+        , SvgA.r "5"
+        , SvgA.fill (colorStr color)
+        ]
+        []
+
+
+colorStr : Element.Color -> String
+colorStr color =
+    let
+        { red, green, blue, alpha } =
+            Element.toRgb color
+    in
+    "rgba("
+        ++ String.fromInt (round (255 * red))
+        ++ ","
+        ++ String.fromInt (round (255 * green))
+        ++ ","
+        ++ String.fromInt (round (255 * blue))
+        ++ ","
+        ++ String.fromFloat alpha
+        ++ ")"
 
 
 referenceCanvas : String -> Element msg
@@ -365,7 +464,13 @@ customRenderer { width, height } nb_frames s =
 
 bottomToolbar : Slider -> Bool -> Int -> Fixer -> Element Msg
 bottomToolbar slid play fps fixer =
-    Element.row [ width fill, height (px 50), Element.padding 10, Element.spacing 10 ]
+    Element.row
+        [ width fill
+        , height (px 50)
+        , Element.padding 10
+        , Element.spacing 10
+        , Element.above (fixerHelper fixer)
+        ]
         [ fpsViewer fps
         , playPauseButton play
         , slider fixer slid
@@ -374,6 +479,36 @@ bottomToolbar slid play fps fixer =
         , interactiveFixButton fixer
         , exportObjButton
         ]
+
+
+fixerHelper : Fixer -> Element msg
+fixerHelper fixer =
+    case fixer of
+        InteractiveFix _ _ ref key ->
+            fixerHelperText (List.length ref) (List.length key)
+
+        _ ->
+            Element.none
+
+
+fixerHelperText : Int -> Int -> Element msg
+fixerHelperText nbRefPoints nbKeyPoints =
+    let
+        textContent =
+            if nbRefPoints == 3 && nbKeyPoints == 3 then
+                "Now try again clicking on the 'Restart from current frame' button."
+
+            else
+                "Pick 3 corresponding points on each image."
+    in
+    el
+        [ Element.alignRight
+        , Background.color (Element.rgba255 255 255 255 0.8)
+        , Element.padding 5
+        , Element.clip
+        , Element.Font.size 20
+        ]
+        (Element.text textContent)
 
 
 fpsViewer : Int -> Element msg
@@ -417,8 +552,20 @@ restartFromButton play current_frame fixer =
         ( False, KeyframesPair baseKf _ ) ->
             restartFromButtonCondition baseKf current_frame
 
+        ( False, InteractiveFix ref key refPoints keyPoints ) ->
+            interactiveRestartFromButton current_frame ref key (List.length refPoints) (List.length keyPoints)
+
         _ ->
             disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+
+
+interactiveRestartFromButton : Int -> Int -> Int -> Int -> Int -> Element Msg
+interactiveRestartFromButton current ref key nbRefPoints nbKeyPoints =
+    if current == key && nbRefPoints == 3 && nbKeyPoints == 3 then
+        abledButton (RestartFrom ref key) "Restart from current frame" (Icon.toHtml 30 Icon.from)
+
+    else
+        disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
 
 
 restartFromButtonCondition : Int -> Int -> Element Msg
