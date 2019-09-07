@@ -117,9 +117,10 @@ export function restartFromKeyframe(baseKf, keyframe) {
 	end_valid = point_cloud.reset_kf(keyframe);
 	last_tracked_frame = camera_path.reset_kf(keyframe);
 	let base_frame = camera_path.index_kf(baseKf);
-	wasm_tracker.reset_at(base_frame, baseKf, last_tracked_frame, keyframe);
+	wasm_tracker.reset_at(base_frame, last_tracked_frame, keyframe);
 	geometry.setDrawRange(0, end_valid / 3);
 	camera_path_geometry.setDrawRange(0, last_tracked_frame);
+	track();
 }
 
 function assert(condition, message) {

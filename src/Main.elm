@@ -35,6 +35,7 @@ type State
 type Fixer
     = NoFix
     | ReferenceKeyframe Int
+    | KeyframesPair Int Int
 
 
 type Camera
@@ -115,15 +116,13 @@ update msg model =
             , Ports.pickReference keyframe
             )
 
-        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (ReferenceKeyframe id) ) ->
-            let
-                newSlider =
-                    { min = 0
-                    , max = keyframe - 1
-                    , current = keyframe - 1
-                    }
-            in
-            ( DatasetLoaded device nb_frames newSlider play fps (ReferenceKeyframe id)
+        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (ReferenceKeyframe _) ) ->
+            ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
+            , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
+            )
+
+        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (KeyframesPair _ _) ) ->
+            ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
             , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
             )
 
@@ -139,6 +138,14 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+sliderRestart : Int -> Slider
+sliderRestart keyframe =
+    { min = 0
+    , max = keyframe
+    , current = keyframe
+    }
 
 
 updateTimeline : Slider -> Slider
@@ -262,6 +269,9 @@ renderer size nb_frames s fixer =
 
                 ReferenceKeyframe _ ->
                     referenceCanvas "block"
+
+                KeyframesPair _ _ ->
+                    referenceCanvas "block"
     in
     el
         [ width fill
@@ -350,14 +360,22 @@ restartFromButton : Bool -> Int -> Fixer -> Element Msg
 restartFromButton play current_frame fixer =
     case ( play, fixer ) of
         ( False, ReferenceKeyframe baseKf ) ->
-            if current_frame > baseKf then
-                abledButton (RestartFrom baseKf current_frame) "Restart from current frame" (Icon.toHtml 30 Icon.from)
+            restartFromButtonCondition baseKf current_frame
 
-            else
-                disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+        ( False, KeyframesPair baseKf _ ) ->
+            restartFromButtonCondition baseKf current_frame
 
         _ ->
             disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
+
+
+restartFromButtonCondition : Int -> Int -> Element Msg
+restartFromButtonCondition base current =
+    if current > base then
+        abledButton (RestartFrom base current) "Restart from current frame" (Icon.toHtml 30 Icon.from)
+
+    else
+        disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
 
 
 abledButton : msg -> String -> Html msg -> Element msg
@@ -391,6 +409,9 @@ slider fixer s =
                     Element.none
 
                 ReferenceKeyframe kf ->
+                    fixerMarkeElement kf s.max
+
+                KeyframesPair kf _ ->
                     fixerMarkeElement kf s.max
     in
     Input.slider

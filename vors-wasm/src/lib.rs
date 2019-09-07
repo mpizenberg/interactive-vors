@@ -153,8 +153,7 @@ impl WasmTracker {
     pub fn reset_at(
         &mut self,
         base_frame_id: usize,
-        base_kf_id: usize,
-        frame_id: usize,
+        last_tracked_frame_id: usize,
         keyframe_id: usize,
     ) {
         let config = self.tracker.as_ref().expect("reset_kf").config().clone();
@@ -175,7 +174,8 @@ impl WasmTracker {
         update_kf_data(&mut self.current_keyframe_data, &keyframe_img);
         self.keyframes.resize(keyframe_id, DMatrix::zeros(0, 0));
         self.keyframes_candidates.resize(keyframe_id, vec![]);
-        self.poses_history.resize(frame_id, Iso3::identity());
+        self.poses_history
+            .resize(last_tracked_frame_id, Iso3::identity());
         self.tracker = Some(tracker);
         self.change_keyframe = true;
     }
@@ -358,12 +358,13 @@ impl CameraPath {
         self.indices_kf[id] / 3
     }
 
-    /// Reset CameraPath as if the given keyframe was the last one.
-    /// Return the frame id of that keyframe.
+    /// Reset CameraPath as if the given keyframe was the last one (not included).
+    /// Return the id of the last tracked frame.
     pub fn reset_kf(&mut self, kf_id: usize) -> usize {
+        let last_tracked_frame = self.index_kf(kf_id) - 1;
         self.end = self.indices_kf[kf_id];
         self.indices_kf.resize(kf_id, 0);
-        self.index_kf(kf_id - 1)
+        last_tracked_frame
     }
 
     pub fn tick(&mut self, wasm_tracker: &WasmTracker) {
