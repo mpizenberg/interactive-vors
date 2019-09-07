@@ -120,7 +120,8 @@ export function restartFromKeyframe(baseKf, keyframe) {
 	wasm_tracker.reset_at(base_frame, last_tracked_frame, keyframe);
 	geometry.setDrawRange(0, end_valid / 3);
 	camera_path_geometry.setDrawRange(0, last_tracked_frame);
-	track();
+	let force_keyframe = true;
+	track(force_keyframe);
 }
 
 function assert(condition, message) {
@@ -162,15 +163,15 @@ function renderLoop() {
 	window.requestAnimationFrame(renderLoop);
 }
 
-export function track() {
+export function track(force_keyframe = false) {
 	last_tracked_frame += 1;
-	trackFrame(last_tracked_frame, nb_frames);
+	trackFrame(force_keyframe, last_tracked_frame, nb_frames);
 	return (last_tracked_frame < nb_frames);
 }
 
-function trackFrame(frame_id, nb_frames) {
+function trackFrame(force_keyframe, frame_id, nb_frames) {
 	if (frame_id < nb_frames) {
-		const frame_pose = wasm_tracker.track(frame_id);
+		const frame_pose = wasm_tracker.track(frame_id, force_keyframe);
 		console.log(frame_pose);
 		// update point cloud.
 		let start_update = end_valid;

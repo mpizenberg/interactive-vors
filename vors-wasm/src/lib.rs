@@ -180,7 +180,7 @@ impl WasmTracker {
         self.change_keyframe = true;
     }
 
-    pub fn track(&mut self, frame_id: usize) -> String {
+    pub fn track(&mut self, frame_id: usize, force_keyframe: bool) -> String {
         let assoc = &self.associations[frame_id];
         let (depth_map, img) =
             _read_image_pair_bis(assoc, &self.tar_buffer, &self.entries).expect("92");
@@ -188,6 +188,7 @@ impl WasmTracker {
         // Track the rgb-d image.
         if let Some(ref mut t) = self.tracker {
             self.change_keyframe = t.track(
+                force_keyframe,
                 assoc.depth_timestamp,
                 &depth_map,
                 assoc.color_timestamp,
