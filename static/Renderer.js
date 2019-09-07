@@ -33,6 +33,7 @@ export let current_camera_path_geometry;
 
 // Keyframe miniature canvas context.
 export let canvas_2d_ctx;
+export let canvas_2d_ctx_ref;
 
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
@@ -101,6 +102,14 @@ async function load_wasm() {
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	// controls.target = new THREE.Vector3(0, 0, 2);
 	controls.update();
+}
+
+export function pickReference(index) {
+	wasm_tracker.pick_reference_kf_data(index);
+	let ptr = wasm_tracker.reference_keyframe_data();
+	let data = new Uint8ClampedArray(wasm.memory.buffer, ptr, 4 * 320 * 240);
+	let image_data = new ImageData(data, 320, 240);
+	canvas_2d_ctx_ref.putImageData(image_data, 0, 0);
 }
 
 export function restartFromKeyframe(baseKf, keyframe) {
@@ -221,7 +230,7 @@ class Renderer extends HTMLElement {
 	}
 
 	static get observedAttributes() {
-		return ['width', 'height', 'canvas-id', 'nb-frames', 'current'];
+		return ['width', 'height', 'canvas-id', 'canvas-id-ref', 'nb-frames', 'current'];
 	}
 
 	attributeChangedCallback(name, oldValue, newValue) {
@@ -245,6 +254,16 @@ class Renderer extends HTMLElement {
 					});
 				} else {
 					canvas_2d_ctx = document.getElementById(newValue).getContext('2d');
+				}
+				break;
+			case 'canvas-id-ref':
+				if (newValue === oldValue) break;
+				if (oldValue == null) { // wait for DOM to be actually ready.
+					requestAnimationFrame(() => {
+						canvas_2d_ctx_ref = document.getElementById(newValue).getContext('2d');
+					});
+				} else {
+					canvas_2d_ctx_ref = document.getElementById(newValue).getContext('2d');
 				}
 				break;
 			case 'nb-frames':

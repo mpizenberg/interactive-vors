@@ -9,6 +9,7 @@ port module Ports exposing
     , exportObj
     , loadDataset
     , newKeyFrame
+    , pickReference
     , resizes
     , restartFrom
     , track
@@ -36,7 +37,10 @@ port newKeyFrame : (Int -> msg) -> Sub msg
 port track : () -> Cmd msg
 
 
-port restartFrom : { keepUntil : Int, restartFrom : Int } -> Cmd msg
+port pickReference : Int -> Cmd msg
+
+
+port restartFrom : { reference : Int, restartFrom : Int } -> Cmd msg
 
 
 port exportObj : () -> Cmd msg

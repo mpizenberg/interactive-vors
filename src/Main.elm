@@ -34,7 +34,7 @@ type State
 
 type Fixer
     = NoFix
-    | FixFromKeyframe Int
+    | ReferenceKeyframe Int
 
 
 type Camera
@@ -73,7 +73,7 @@ type Msg
     | WindowResizes Device.Size
     | NewKeyFrame Int
     | ToogleTracking
-    | KeepUntil Int
+    | PickReference Int
     | RestartFrom Int Int
     | ExportObj
 
@@ -107,13 +107,15 @@ update msg model =
         ( NewKeyFrame _, DatasetLoaded device nb_frames slid play fps fixer ) ->
             ( DatasetLoaded device nb_frames (updateTimeline slid) play fps fixer, Cmd.none )
 
-        ( ToogleTracking, DatasetLoaded device nb_frames slid play fps fixer ) ->
-            ( DatasetLoaded device nb_frames slid (not play) fps fixer, Cmd.none )
+        ( ToogleTracking, DatasetLoaded device nb_frames slid play fps _ ) ->
+            ( DatasetLoaded device nb_frames slid (not play) fps NoFix, Cmd.none )
 
-        ( KeepUntil keyframe, DatasetLoaded device nb_frames slid play fps _ ) ->
-            ( DatasetLoaded device nb_frames slid play fps (FixFromKeyframe keyframe), Cmd.none )
+        ( PickReference keyframe, DatasetLoaded device nb_frames slid play fps _ ) ->
+            ( DatasetLoaded device nb_frames slid play fps (ReferenceKeyframe keyframe)
+            , Ports.pickReference keyframe
+            )
 
-        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (FixFromKeyframe _) ) ->
+        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (ReferenceKeyframe id) ) ->
             let
                 newSlider =
                     { min = 0
@@ -121,8 +123,8 @@ update msg model =
                     , current = keyframe - 1
                     }
             in
-            ( DatasetLoaded device nb_frames newSlider play fps NoFix
-            , Ports.restartFrom { keepUntil = baseKf, restartFrom = keyframe }
+            ( DatasetLoaded device nb_frames newSlider play fps (ReferenceKeyframe id)
+            , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
             )
 
         ( ExportObj, DatasetLoaded _ _ _ _ _ _ ) ->
@@ -227,7 +229,7 @@ appLayout model =
                     }
             in
             Element.column [ width fill, height fill, Element.clip ]
-                [ renderer rendererSize nb_frames slid
+                [ renderer rendererSize nb_frames slid fixer
                 , bottomToolbar slid play fps.stable fixer
                 ]
 
@@ -250,25 +252,41 @@ initialLayout camera =
         ]
 
 
-renderer : Device.Size -> Int -> Slider -> Element msg
-renderer size nb_frames s =
+renderer : Device.Size -> Int -> Slider -> Fixer -> Element msg
+renderer size nb_frames s fixer =
+    let
+        refCanvas =
+            case fixer of
+                NoFix ->
+                    referenceCanvas "none"
+
+                ReferenceKeyframe _ ->
+                    referenceCanvas "block"
+    in
     el
         [ width fill
         , height fill
         , Background.color (rgb255 255 220 255)
         , Element.inFront keyframeCanvas
+        , Element.inFront refCanvas
         ]
         (Element.html (customRenderer size nb_frames s))
 
 
+referenceCanvas : String -> Element msg
+referenceCanvas display =
+    el [ width (px 320), height (px 240), Element.moveDown 240, Element.htmlAttribute (Attr.style "display" display) ]
+        (Element.html (htmlKeyframeCanvas "canvas-kf-ref" display))
+
+
 keyframeCanvas : Element msg
 keyframeCanvas =
-    el [ width (px 320), height (px 240) ] (Element.html htmlKeyframeCanvas)
+    el [ width (px 320), height (px 240) ] (Element.html (htmlKeyframeCanvas "canvas-kf" "block"))
 
 
-htmlKeyframeCanvas : Html msg
-htmlKeyframeCanvas =
-    Html.canvas [ Attr.id "canvas-kf", Attr.width 320, Attr.height 240, Attr.style "display" "block" ] []
+htmlKeyframeCanvas : String -> String -> Html msg
+htmlKeyframeCanvas id display =
+    Html.canvas [ Attr.id id, Attr.width 320, Attr.height 240, Attr.style "display" display ] []
 
 
 customRenderer : Device.Size -> Int -> Slider -> Html msg
@@ -277,6 +295,7 @@ customRenderer { width, height } nb_frames s =
         [ attribute "width" (String.fromFloat width)
         , attribute "height" (String.fromFloat height)
         , attribute "canvas-id" "canvas-kf"
+        , attribute "canvas-id-ref" "canvas-kf-ref"
         , attribute "nb-frames" (String.fromInt nb_frames)
         , attribute "current" (String.fromInt s.current)
         ]
@@ -289,7 +308,7 @@ bottomToolbar slid play fps fixer =
         [ fpsViewer fps
         , playPauseButton play
         , slider fixer slid
-        , keepUntilButton play slid.current
+        , pickRefButton play slid.current
         , restartFromButton play slid.current fixer
         , exportObjButton
         ]
@@ -318,19 +337,19 @@ exportObjButton =
     abledButton ExportObj "Export to obj file" (Icon.toHtml 30 Icon.download)
 
 
-keepUntilButton : Bool -> Int -> Element Msg
-keepUntilButton play current_frame =
+pickRefButton : Bool -> Int -> Element Msg
+pickRefButton play current_frame =
     if play then
         disabledButton "Keep until current frame" (Icon.toHtml 30 Icon.until)
 
     else
-        abledButton (KeepUntil current_frame) "Keep until current frame" (Icon.toHtml 30 Icon.until)
+        abledButton (PickReference current_frame) "Keep until current frame" (Icon.toHtml 30 Icon.until)
 
 
 restartFromButton : Bool -> Int -> Fixer -> Element Msg
 restartFromButton play current_frame fixer =
     case ( play, fixer ) of
-        ( False, FixFromKeyframe baseKf ) ->
+        ( False, ReferenceKeyframe baseKf ) ->
             if current_frame > baseKf then
                 abledButton (RestartFrom baseKf current_frame) "Restart from current frame" (Icon.toHtml 30 Icon.from)
 
@@ -371,7 +390,7 @@ slider fixer s =
                 NoFix ->
                     Element.none
 
-                FixFromKeyframe kf ->
+                ReferenceKeyframe kf ->
                     fixerMarkeElement kf s.max
     in
     Input.slider

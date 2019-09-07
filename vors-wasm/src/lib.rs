@@ -37,7 +37,9 @@ pub struct WasmTracker {
     tracker: Option<track::Tracker>,
     pub change_keyframe: bool,
     keyframes: Vec<DMatrix<u8>>,
+    keyframes_candidates: Vec<Vec<(usize, usize)>>,
     current_keyframe_data: Vec<u8>,
+    reference_keyframe_data: Vec<u8>,
     poses_history: Vec<Iso3>,
 }
 
@@ -53,7 +55,9 @@ impl WasmTracker {
             tracker: None,
             change_keyframe: false,
             keyframes: vec![],
+            keyframes_candidates: vec![],
             current_keyframe_data: vec![0; 320 * 240 * 4],
+            reference_keyframe_data: vec![0; 320 * 240 * 4],
             poses_history: vec![],
         }
     }
@@ -64,6 +68,10 @@ impl WasmTracker {
 
     pub fn memory_pos(&self) -> *const u8 {
         self.tar_buffer.as_ptr()
+    }
+
+    pub fn reference_keyframe_data(&self) -> *const u8 {
+        self.reference_keyframe_data.as_ptr()
     }
 
     pub fn current_keyframe_data(&self) -> *const u8 {
@@ -108,10 +116,12 @@ impl WasmTracker {
         let depth_time = self.associations[0].depth_timestamp;
         let img_time = self.associations[0].color_timestamp;
         let tracker = config.init(depth_time, &depth_map, img_time, img);
-        let mut keyframe_img = tracker.keyframe_img();
-        keyframe_img = keyframe_img.transpose();
-        update_current_kf_data(&mut self.current_keyframe_data, &keyframe_img);
+        let keyframe_img = tracker.keyframe_img();
+        let keyframe_img = keyframe_img.transpose();
+        update_kf_data(&mut self.current_keyframe_data, &keyframe_img);
         self.keyframes.push(keyframe_img);
+        self.keyframes_candidates
+            .push(tracker.keyframe_candidates().to_owned());
 
         // Push initial pose to history.
         let (_, pose) = tracker.current_frame();
@@ -124,8 +134,20 @@ impl WasmTracker {
         self.associations.len()
     }
 
+    pub fn pick_reference_kf_data(&mut self, index: usize) {
+        update_kf_data(&mut self.reference_keyframe_data, &self.keyframes[index]);
+        let (width, _) = self.keyframes[index].shape(); // DMatrix is transposed
+        let data = &mut self.reference_keyframe_data[..];
+        for &(x, y) in self.keyframes_candidates[index].iter() {
+            let pix = 4 * (y * width + x);
+            data[pix] = 255;
+            data[pix + 1] = 0;
+            data[pix + 2] = 0;
+        }
+    }
+
     pub fn pick_current_kf_data(&mut self, index: usize) {
-        update_current_kf_data(&mut self.current_keyframe_data, &self.keyframes[index]);
+        update_kf_data(&mut self.current_keyframe_data, &self.keyframes[index]);
     }
 
     pub fn reset_at(
@@ -148,10 +170,11 @@ impl WasmTracker {
         // Reset the pose to the one of the chosen keyframe.
         tracker.reset_pose(self.poses_history[base_frame_id]);
 
-        let mut keyframe_img = tracker.keyframe_img();
-        keyframe_img = keyframe_img.transpose();
-        update_current_kf_data(&mut self.current_keyframe_data, &keyframe_img);
+        let keyframe_img = tracker.keyframe_img();
+        let keyframe_img = keyframe_img.transpose();
+        update_kf_data(&mut self.current_keyframe_data, &keyframe_img);
         self.keyframes.resize(keyframe_id, DMatrix::zeros(0, 0));
+        self.keyframes_candidates.resize(keyframe_id, vec![]);
         self.poses_history.resize(frame_id, Iso3::identity());
         self.tracker = Some(tracker);
         self.change_keyframe = true;
@@ -172,9 +195,11 @@ impl WasmTracker {
             );
             let (timestamp, pose) = t.current_frame();
             if self.change_keyframe {
-                let mut keyframe_img = t.keyframe_img();
-                keyframe_img = keyframe_img.transpose();
+                let keyframe_img = t.keyframe_img();
+                let keyframe_img = keyframe_img.transpose();
                 self.keyframes.push(keyframe_img);
+                self.keyframes_candidates
+                    .push(t.keyframe_candidates().to_owned());
             }
             self.poses_history.push(pose);
             return (tum_rgbd::Frame { timestamp, pose }).to_string();
@@ -188,7 +213,7 @@ impl WasmTracker {
 /// Update self.current_keyframe_data.
 /// The DMatrix in argument must already have been transposed to have the same
 /// components order in column major.
-fn update_current_kf_data(current_data: &mut [u8], kf: &DMatrix<u8>) {
+fn update_kf_data(current_data: &mut [u8], kf: &DMatrix<u8>) {
     current_data
         .chunks_mut(4)
         .zip(kf.iter())
@@ -336,9 +361,7 @@ impl CameraPath {
     /// Reset CameraPath as if the given keyframe was the last one.
     /// Return the frame id of that keyframe.
     pub fn reset_kf(&mut self, kf_id: usize) -> usize {
-        console_log!("self.end = ...");
         self.end = self.indices_kf[kf_id];
-        console_log!("resize");
         self.indices_kf.resize(kf_id, 0);
         self.index_kf(kf_id - 1)
     }
