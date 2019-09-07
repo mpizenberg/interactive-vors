@@ -7,6 +7,7 @@ import Element.Border as Border
 import Element.Events
 import Element.Font
 import Element.Input as Input
+import Element.Keyed
 import Html exposing (Html)
 import Html.Attributes as Attr exposing (attribute)
 import Icon
@@ -15,6 +16,8 @@ import Packages.Device as Device exposing (Device)
 import Packages.FileInput as FileInput
 import Ports
 import Style
+import Svg
+import Svg.Attributes as SvgA
 
 
 main : Program Device.Size State Msg
@@ -36,6 +39,14 @@ type Fixer
     = NoFix
     | ReferenceKeyframe Int
     | KeyframesPair Int Int
+    | InteractiveFix Int Int (List PointFix) (List PointFix)
+
+
+type alias PointFix =
+    { id : Int
+    , color : Element.Color
+    , pos : ( Float, Float )
+    }
 
 
 type Camera
@@ -76,6 +87,7 @@ type Msg
     | ToogleTracking
     | PickReference Int
     | RestartFrom Int Int
+    | ToggleInteractiveFix
     | ExportObj
 
 
@@ -124,6 +136,16 @@ update msg model =
         ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (KeyframesPair _ _) ) ->
             ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
             , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
+            )
+
+        ( ToggleInteractiveFix, DatasetLoaded device nb_frames slid play fps (KeyframesPair k1 k2) ) ->
+            ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 [] [])
+            , Cmd.none
+            )
+
+        ( ToggleInteractiveFix, DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 _ _) ) ->
+            ( DatasetLoaded device nb_frames slid play fps (KeyframesPair k1 k2)
+            , Cmd.none
             )
 
         ( ExportObj, DatasetLoaded _ _ _ _ _ _ ) ->
@@ -259,33 +281,62 @@ initialLayout camera =
         ]
 
 
-renderer : Device.Size -> Int -> Slider -> Fixer -> Element msg
+renderer : Device.Size -> Int -> Slider -> Fixer -> Element Msg
 renderer size nb_frames s fixer =
     let
-        refCanvas =
+        ( kfCanvas, refCanvas ) =
             case fixer of
                 NoFix ->
-                    referenceCanvas "none"
+                    ( interactiveKeyframeCanvas "none" []
+                    , interactiveReferenceCanvas "none" "none" []
+                    )
 
                 ReferenceKeyframe _ ->
-                    referenceCanvas "block"
+                    ( interactiveKeyframeCanvas "none" []
+                    , interactiveReferenceCanvas "none" "block" []
+                    )
 
                 KeyframesPair _ _ ->
-                    referenceCanvas "block"
+                    ( interactiveKeyframeCanvas "none" []
+                    , interactiveReferenceCanvas "none" "block" []
+                    )
+
+                InteractiveFix _ _ refPoints kfPoints ->
+                    ( interactiveKeyframeCanvas "block" kfPoints
+                    , interactiveReferenceCanvas "block" "block" refPoints
+                    )
     in
-    el
+    Element.Keyed.el
         [ width fill
         , height fill
         , Background.color (rgb255 255 220 255)
-        , Element.inFront keyframeCanvas
+        , Element.inFront kfCanvas
         , Element.inFront refCanvas
         ]
-        (Element.html (customRenderer size nb_frames s))
+        ( "rendererElement", Element.html (customRenderer size nb_frames s) )
+
+
+interactiveReferenceCanvas : String -> String -> List PointFix -> Element Msg
+interactiveReferenceCanvas displayInteractive displayCanvas points =
+    el [ Element.inFront (interactiveSvg displayInteractive points), Element.moveDown 240 ] (referenceCanvas displayCanvas)
+
+
+interactiveKeyframeCanvas : String -> List PointFix -> Element Msg
+interactiveKeyframeCanvas display points =
+    el [ Element.inFront (interactiveSvg display points) ] keyframeCanvas
+
+
+interactiveSvg : String -> List PointFix -> Element Msg
+interactiveSvg display points =
+    Element.html <|
+        Svg.svg [ SvgA.width "320", SvgA.height "240", Attr.style "display" display ]
+            [ Svg.circle [ SvgA.cx "50", SvgA.cy "50", SvgA.r "50" ] []
+            ]
 
 
 referenceCanvas : String -> Element msg
 referenceCanvas display =
-    el [ width (px 320), height (px 240), Element.moveDown 240, Element.htmlAttribute (Attr.style "display" display) ]
+    el [ width (px 320), height (px 240), Element.htmlAttribute (Attr.style "display" display) ]
         (Element.html (htmlKeyframeCanvas "canvas-kf-ref" display))
 
 
@@ -320,6 +371,7 @@ bottomToolbar slid play fps fixer =
         , slider fixer slid
         , pickRefButton play slid.current
         , restartFromButton play slid.current fixer
+        , interactiveFixButton fixer
         , exportObjButton
         ]
 
@@ -378,6 +430,34 @@ restartFromButtonCondition base current =
         disabledButton "Restart from currrent frame" (Icon.toHtml 30 Icon.from)
 
 
+interactiveFixButton : Fixer -> Element Msg
+interactiveFixButton fixer =
+    case fixer of
+        NoFix ->
+            disabledButton "Pick points to fix camera pose" (Icon.toHtml 30 Icon.edit)
+
+        ReferenceKeyframe _ ->
+            disabledButton "Pick points to fix camera pose" (Icon.toHtml 30 Icon.edit)
+
+        KeyframesPair _ _ ->
+            abledButton ToggleInteractiveFix "Pick points to fix camera pose" (Icon.toHtml 30 Icon.edit)
+
+        InteractiveFix _ _ _ _ ->
+            activeButton ToggleInteractiveFix "Pick points to fix camera pose" (Icon.toHtml 30 Icon.edit)
+
+
+activeButton : msg -> String -> Html msg -> Element msg
+activeButton msg title icon =
+    Html.div (centerFlexAttributes 50) [ icon ]
+        |> Element.html
+        |> Element.el
+            [ Background.color Style.hoveredItemBG
+            , Element.pointer
+            , Element.Events.onClick msg
+            , Element.htmlAttribute (Attr.title title)
+            ]
+
+
 abledButton : msg -> String -> Html msg -> Element msg
 abledButton msg title icon =
     Html.div (centerFlexAttributes 50) [ icon ]
@@ -412,6 +492,9 @@ slider fixer s =
                     fixerMarkeElement kf s.max
 
                 KeyframesPair kf _ ->
+                    fixerMarkeElement kf s.max
+
+                InteractiveFix kf _ _ _ ->
                     fixerMarkeElement kf s.max
     in
     Input.slider

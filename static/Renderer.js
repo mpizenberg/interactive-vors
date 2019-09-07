@@ -228,6 +228,7 @@ class Renderer extends HTMLElement {
 		this.height = 0;
 		this.attachShadow({ mode: 'open' });
 		this.shadowRoot.appendChild(renderer.domElement);
+		console.log("Renderer custom element constructor.");
 		renderLoop();
 	}
 
@@ -275,6 +276,7 @@ class Renderer extends HTMLElement {
 			case 'current':
 				// if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
+				console.log(`current from ${oldValue} to ${newValue}`);
 				updateCurrentPointCloud(+newValue);
 				updateCurrentCameraPoseKf(+newValue);
 				if (oldValue == null) break;
