@@ -27,6 +27,15 @@ export function activatePorts(app, containerSize) {
 	app.ports.restartFrom.subscribe( ({reference: baseKf, restartFrom: keyframe}) => {
 		Renderer.restartFromKeyframe(baseKf, keyframe);
 	});
+	
+	app.ports.restartFromP3p.subscribe( data => {
+		Renderer.restartFromKeyframeP3p(
+			data.reference,
+			data.restartFrom,
+			data.p3pRef,
+			data.p3pKey,
+		);
+	});
 
 	app.ports.exportObj.subscribe( () => {
 		let obj_vec = [];

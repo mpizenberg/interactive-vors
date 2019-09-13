@@ -12,6 +12,7 @@ port module Ports exposing
     , pickReference
     , resizes
     , restartFrom
+    , restartFromP3p
     , track
     )
 
@@ -41,6 +42,9 @@ port pickReference : Int -> Cmd msg
 
 
 port restartFrom : { reference : Int, restartFrom : Int } -> Cmd msg
+
+
+port restartFromP3p : { reference : Int, restartFrom : Int, p3pRef : List ( Float, Float ), p3pKey : List ( Float, Float ) } -> Cmd msg
 
 
 port exportObj : () -> Cmd msg

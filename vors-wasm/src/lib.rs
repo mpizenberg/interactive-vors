@@ -1,8 +1,8 @@
-use visual_odometry_rs as vors;
+use serde_wasm_bindgen;
 use wasm_bindgen::prelude::*;
 
 use image;
-use nalgebra::DMatrix;
+use nalgebra::{self, DMatrix, Quaternion, Translation, UnitQuaternion, Vector3, Vector4};
 use std::{error::Error, io::Read};
 
 use byteorder::{BigEndian, ReadBytesExt};
@@ -11,13 +11,19 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use tar;
 
+use visual_odometry_rs as vors;
 use vors::core::camera::Intrinsics;
 use vors::core::track::inverse_compositional as track;
 use vors::dataset::tum_rgbd;
 use vors::misc::interop;
-use vors::misc::type_aliases::Iso3;
+use vors::misc::type_aliases::{Iso3, Point2};
 
 use png_decoder::png as png_me;
+
+use p3p;
+
+type Vec3 = Vector3<f32>;
+type Vec4 = Vector4<f32>;
 
 #[wasm_bindgen]
 extern "C" {
@@ -180,6 +186,97 @@ impl WasmTracker {
         self.change_keyframe = true;
     }
 
+    pub fn reset_at_p3p(
+        &mut self,
+        base_frame_id: usize,
+        last_tracked_frame_id: usize,
+        keyframe_id: usize,
+        p3p_ref_points: JsValue,
+        p3p_key_points: JsValue,
+    ) {
+        let config = self.tracker.as_ref().expect("reset_kf").config().clone();
+        let (depth_map, img) = _read_image_pair_bis(
+            &self.associations[base_frame_id],
+            &self.tar_buffer,
+            &self.entries,
+        )
+        .expect("81");
+        let depth_time = self.associations[base_frame_id].depth_timestamp;
+        let img_time = self.associations[base_frame_id].color_timestamp;
+        let mut tracker = config.init(depth_time, &depth_map, img_time, img);
+
+        // Reset the pose to the one of the chosen keyframe.
+        let pose = self.poses_history[base_frame_id];
+        tracker.reset_pose(pose);
+
+        // Compute P3P initialization for the tracker.
+        let p3p_ref_points: [(f32, f32); 3] =
+            serde_wasm_bindgen::from_value(p3p_ref_points).expect("woops");
+        let p3p_key_points: [(f32, f32); 3] =
+            serde_wasm_bindgen::from_value(p3p_key_points).expect("woops");
+        // TODO: Identify 3D points associated to p3p_ref_points.
+        let ref_candidates_coords = tracker.keyframe_candidates();
+        let ref_candidates_idepths = tracker.keyframe_candidates_idepths();
+        let (closest_0, ref_0) = closest_to(p3p_ref_points[0], ref_candidates_coords);
+        let (closest_1, ref_1) = closest_to(p3p_ref_points[1], ref_candidates_coords);
+        let (closest_2, ref_2) = closest_to(p3p_ref_points[2], ref_candidates_coords);
+        console_log!("ref_0_pos: {:?}", ref_0);
+        console_log!("ref_1_pos: {:?}", ref_1);
+        console_log!("ref_2_pos: {:?}", ref_2);
+        let idepth_0 = ref_candidates_idepths[closest_0];
+        let idepth_1 = ref_candidates_idepths[closest_1];
+        let idepth_2 = ref_candidates_idepths[closest_2];
+        let intrinsics = &tracker.intrinsics()[1];
+        console_log!("intrinsics: {:?}", intrinsics);
+        let to_camera_coords =
+            |(u, v), idepth| intrinsics.back_project(Point2::new(u, v), 1.0 / idepth);
+        let to_3d_world = |coords, idepth| pose * to_camera_coords(coords, idepth);
+        let world_3d_points = [
+            to_3d_world(ref_0, idepth_0).coords.into(),
+            to_3d_world(ref_1, idepth_1).coords.into(),
+            to_3d_world(ref_2, idepth_2).coords.into(),
+        ];
+        console_log!("3D point 1: {:?}", &world_3d_points[0]);
+        console_log!("3D point 2: {:?}", &world_3d_points[1]);
+        console_log!("3D point 3: {:?}", &world_3d_points[2]);
+        // TODO: Compute potential poses with P3P crate.
+        let bearing_vectors = [
+            to_camera_coords(p3p_key_points[0], 1.0).coords.into(),
+            to_camera_coords(p3p_key_points[1], 1.0).coords.into(),
+            to_camera_coords(p3p_key_points[2], 1.0).coords.into(),
+        ];
+        console_log!("bearing 1: {:?}", &bearing_vectors[0]);
+        console_log!("bearing 2: {:?}", &bearing_vectors[1]);
+        console_log!("bearing 3: {:?}", &bearing_vectors[2]);
+        let key_projections = p3p::nordberg::solve(&world_3d_points, &bearing_vectors);
+        // console_log!("reference pose: {}", pose);
+        console_log!("potential poses:");
+        let key_poses: Vec<_> = key_projections
+            .iter()
+            .map(|p| {
+                let rot_quat = Quaternion::from(Vec4::from(p.rotation));
+                let rot = UnitQuaternion::from_quaternion(rot_quat);
+                let trans = Translation::from(Vec3::from(p.translation));
+                let key_pose = Iso3::from_parts(trans, rot).inverse();
+                console_log!("{:?}", key_pose.translation);
+                key_pose
+            })
+            .collect();
+        // TODO: Select the one with lowest reprojection error.
+        // TODO: Update current frame pose of tracker with this one.
+
+        let keyframe_img = tracker.keyframe_img();
+        let keyframe_img = keyframe_img.transpose();
+        update_kf_data(&mut self.current_keyframe_data, &keyframe_img);
+        self.keyframes.resize(keyframe_id, DMatrix::zeros(0, 0));
+        self.keyframes_candidates.resize(keyframe_id, vec![]);
+        self.poses_history
+            .resize(last_tracked_frame_id, Iso3::identity());
+
+        self.tracker = Some(tracker);
+        self.change_keyframe = true;
+    }
+
     pub fn track(&mut self, frame_id: usize, force_keyframe: bool) -> String {
         let assoc = &self.associations[frame_id];
         let (depth_map, img) =
@@ -209,6 +306,19 @@ impl WasmTracker {
         // Return formatted camera pose.
         unreachable!()
     }
+}
+
+fn closest_to(point: (f32, f32), coords: &[(usize, usize)]) -> (usize, (f32, f32)) {
+    let (id, &(u, v)) = coords
+        .iter()
+        .enumerate()
+        .min_by(|&(_id1, &(u1, v1)), &(_id2, &(u2, v2))| {
+            let d1 = (u1 as f32 - point.0).powi(2) + (v1 as f32 - point.1).powi(2);
+            let d2 = (u2 as f32 - point.0).powi(2) + (v2 as f32 - point.1).powi(2);
+            d1.partial_cmp(&d2).unwrap()
+        })
+        .unwrap();
+    (id, (u as f32, v as f32))
 }
 
 /// Update self.current_keyframe_data.

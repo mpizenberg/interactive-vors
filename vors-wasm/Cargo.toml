@@ -9,8 +9,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.1.3"
 tar = "0.4.23"
 visual-odometry-rs = { path = "/home/matthieu/git/phd/visual-odometry-rs" }
+p3p = "0.1"
 png = "0.14"
 byteorder = "1.2" # Reading numbers in [big/little]-endian.
 nalgebra = "0.17" # Linear algebra.

@@ -124,6 +124,18 @@ export function restartFromKeyframe(baseKf, keyframe) {
 	track(force_keyframe);
 }
 
+export function restartFromKeyframeP3p(baseKf, keyframe, p3p_ref_points, p3p_key_points) {
+	assert(baseKf < keyframe, "Base keyframe >= restart keyframe");
+	end_valid = point_cloud.reset_kf(keyframe);
+	last_tracked_frame = camera_path.reset_kf(keyframe);
+	let base_frame = camera_path.index_kf(baseKf);
+	wasm_tracker.reset_at_p3p(base_frame, last_tracked_frame, keyframe, p3p_ref_points, p3p_key_points);
+	geometry.setDrawRange(0, end_valid / 3);
+	camera_path_geometry.setDrawRange(0, last_tracked_frame);
+	let force_keyframe = true;
+	track(force_keyframe);
+}
+
 function assert(condition, message) {
     if (!condition) { throw message || "Assertion failed"; }
 }

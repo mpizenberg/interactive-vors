@@ -142,15 +142,13 @@ update msg model =
             )
 
         ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (InteractiveFix _ _ refPoints keyPoints) ) ->
-            let
-                _ =
-                    Debug.log "Points in reference image:" (List.map .pos refPoints)
-
-                _ =
-                    Debug.log "Points in keyframe image:" (List.map .pos keyPoints)
-            in
             ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
-            , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
+            , Ports.restartFromP3p
+                { reference = baseKf
+                , restartFrom = keyframe
+                , p3pRef = Debug.log "ref" (List.map .pos refPoints)
+                , p3pKey = List.map .pos keyPoints
+                }
             )
 
         ( ToggleInteractiveFix, DatasetLoaded device nb_frames slid play fps (KeyframesPair k1 k2) ) ->
