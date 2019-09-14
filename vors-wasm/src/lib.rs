@@ -173,7 +173,8 @@ impl WasmTracker {
         let img_time = self.associations[base_frame_id].color_timestamp;
         let mut tracker = config.init(depth_time, &depth_map, img_time, img);
         // Reset the pose to the one of the chosen keyframe.
-        tracker.reset_pose(self.poses_history[base_frame_id]);
+        let base_pose = self.poses_history[base_frame_id];
+        tracker.reset_pose(base_pose, base_pose);
 
         let keyframe_img = tracker.keyframe_img();
         let keyframe_img = keyframe_img.transpose();
@@ -207,7 +208,7 @@ impl WasmTracker {
 
         // Reset the pose to the one of the chosen keyframe.
         let pose = self.poses_history[base_frame_id];
-        tracker.reset_pose(pose);
+        tracker.reset_pose(pose, pose);
 
         // Compute P3P initialization for the tracker.
         let p3p_ref_points: [(f32, f32); 3] =
@@ -227,7 +228,6 @@ impl WasmTracker {
         let idepth_1 = ref_candidates_idepths[closest_1];
         let idepth_2 = ref_candidates_idepths[closest_2];
         let intrinsics = &tracker.intrinsics()[1];
-        console_log!("intrinsics: {:?}", intrinsics);
         let to_camera_coords =
             |(u, v), idepth| intrinsics.back_project(Point2::new(u, v), 1.0 / idepth);
         let to_3d_world = |coords, idepth| pose * to_camera_coords(coords, idepth);
@@ -236,18 +236,15 @@ impl WasmTracker {
             to_3d_world(ref_1, idepth_1).coords.into(),
             to_3d_world(ref_2, idepth_2).coords.into(),
         ];
-        console_log!("3D point 1: {:?}", &world_3d_points[0]);
-        console_log!("3D point 2: {:?}", &world_3d_points[1]);
-        console_log!("3D point 3: {:?}", &world_3d_points[2]);
         // TODO: Compute potential poses with P3P crate.
+        let bearing_vec_0 = to_camera_coords(p3p_key_points[0], 1.0).coords;
+        let bearing_vec_1 = to_camera_coords(p3p_key_points[1], 1.0).coords;
+        let bearing_vec_2 = to_camera_coords(p3p_key_points[2], 1.0).coords;
         let bearing_vectors = [
-            to_camera_coords(p3p_key_points[0], 1.0).coords.into(),
-            to_camera_coords(p3p_key_points[1], 1.0).coords.into(),
-            to_camera_coords(p3p_key_points[2], 1.0).coords.into(),
+            ((1.0 / bearing_vec_0[2]) * bearing_vec_0).into(),
+            ((1.0 / bearing_vec_1[2]) * bearing_vec_1).into(),
+            ((1.0 / bearing_vec_2[2]) * bearing_vec_2).into(),
         ];
-        console_log!("bearing 1: {:?}", &bearing_vectors[0]);
-        console_log!("bearing 2: {:?}", &bearing_vectors[1]);
-        console_log!("bearing 3: {:?}", &bearing_vectors[2]);
         let key_projections = p3p::nordberg::solve(&world_3d_points, &bearing_vectors);
         // console_log!("reference pose: {}", pose);
         console_log!("potential poses:");
@@ -263,8 +260,32 @@ impl WasmTracker {
             })
             .collect();
         // TODO: Select the one with lowest reprojection error.
+        let (_, retrack_img) = _read_image_pair_bis(
+            &self.associations[last_tracked_frame_id + 1],
+            &self.tar_buffer,
+            &self.entries,
+        )
+        .expect("ohoh");
+        key_poses.iter().for_each(|pose| {
+            let reproj_error = tracker.reprojection_error(pose, &retrack_img);
+            console_log!("reprojection error: {:?}", reproj_error);
+        });
         // TODO: Update current frame pose of tracker with this one.
+        let estimated_pose = std::iter::once(&pose)
+            .chain(key_poses.iter())
+            .min_by(|p1, p2| {
+                let (inside_ratio_1, error_1) = tracker.reprojection_error(p1, &retrack_img);
+                let (inside_ratio_2, error_2) = tracker.reprojection_error(p2, &retrack_img);
+                if inside_ratio_2 > 0.25 {
+                    error_1.partial_cmp(&error_2).unwrap()
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            })
+            .unwrap();
+        tracker.reset_pose(pose, *estimated_pose);
 
+        // Following is same than rest_at function.
         let keyframe_img = tracker.keyframe_img();
         let keyframe_img = keyframe_img.transpose();
         update_kf_data(&mut self.current_keyframe_data, &keyframe_img);
