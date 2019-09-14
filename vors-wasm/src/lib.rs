@@ -215,7 +215,8 @@ impl WasmTracker {
             serde_wasm_bindgen::from_value(p3p_ref_points).expect("woops");
         let p3p_key_points: [(f32, f32); 3] =
             serde_wasm_bindgen::from_value(p3p_key_points).expect("woops");
-        // TODO: Identify 3D points associated to p3p_ref_points.
+
+        // Identify 3D points associated to p3p_ref_points.
         let ref_candidates_coords = tracker.keyframe_candidates();
         let ref_candidates_idepths = tracker.keyframe_candidates_idepths();
         let (closest_0, ref_0) = closest_to(p3p_ref_points[0], ref_candidates_coords);
@@ -236,7 +237,8 @@ impl WasmTracker {
             to_3d_world(ref_1, idepth_1).coords.into(),
             to_3d_world(ref_2, idepth_2).coords.into(),
         ];
-        // TODO: Compute potential poses with P3P crate.
+
+        // Compute potential poses with P3P crate.
         let bearing_vec_0 = to_camera_coords(p3p_key_points[0], 1.0).coords;
         let bearing_vec_1 = to_camera_coords(p3p_key_points[1], 1.0).coords;
         let bearing_vec_2 = to_camera_coords(p3p_key_points[2], 1.0).coords;
@@ -259,7 +261,8 @@ impl WasmTracker {
                 key_pose
             })
             .collect();
-        // TODO: Select the one with lowest reprojection error.
+
+        // Select the one with lowest reprojection error.
         let (_, retrack_img) = _read_image_pair_bis(
             &self.associations[last_tracked_frame_id + 1],
             &self.tar_buffer,
@@ -270,7 +273,8 @@ impl WasmTracker {
             let reproj_error = tracker.reprojection_error(pose, &retrack_img);
             console_log!("reprojection error: {:?}", reproj_error);
         });
-        // TODO: Update current frame pose of tracker with this one.
+
+        // Update current frame pose of tracker with this one.
         let estimated_pose = std::iter::once(&pose)
             .chain(key_poses.iter())
             .min_by(|p1, p2| {
@@ -285,7 +289,7 @@ impl WasmTracker {
             .unwrap();
         tracker.reset_pose(pose, *estimated_pose);
 
-        // Following is same than rest_at function.
+        // Following is the same than the reset_at function.
         let keyframe_img = tracker.keyframe_img();
         let keyframe_img = keyframe_img.transpose();
         update_kf_data(&mut self.current_keyframe_data, &keyframe_img);
