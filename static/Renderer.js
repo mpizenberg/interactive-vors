@@ -35,14 +35,20 @@ export let current_camera_path_geometry;
 export let canvas_2d_ctx;
 export let canvas_2d_ctx_ref;
 
+// P3P point clouds.
+export let p3p_point_cloud_1;
+export let p3p_point_cloud_2;
+export let p3p_point_cloud_3;
+export let p3p_point_cloud_4;
+
 // Prepare WebGL context with THREE.
 camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.set(0, 0, -1);
-// camera.up.set( 0, -1, 0 );
+camera.up.set( 0, 1, 0 );
 scene = new THREE.Scene();
 scene.background = new THREE.Color( 0x050505 );
 
-// Perpare visualization.
+// Prepare visualization.
 geometry = new THREE.BufferGeometry();
 geometry.setDrawRange(0, end_valid / 3);
 current_geometry = new THREE.BufferGeometry();
@@ -51,6 +57,16 @@ camera_path_geometry = new THREE.BufferGeometry();
 camera_path_geometry.setDrawRange(0, 0);
 current_camera_path_geometry = new THREE.BufferGeometry();
 current_camera_path_geometry.setDrawRange(0, 0);
+
+// Prepare P3P point clouds visualization.
+p3p_point_cloud_1 = new THREE.BufferGeometry();
+p3p_point_cloud_2 = new THREE.BufferGeometry();
+p3p_point_cloud_3 = new THREE.BufferGeometry();
+p3p_point_cloud_4 = new THREE.BufferGeometry();
+p3p_point_cloud_1.setDrawRange(0, 0);
+p3p_point_cloud_2.setDrawRange(0, 0);
+p3p_point_cloud_3.setDrawRange(0, 0);
+p3p_point_cloud_4.setDrawRange(0, 0);
 
 // Run Forest!
 load_wasm();
@@ -65,18 +81,16 @@ async function load_wasm() {
 	// Bind geometry to THREE buffers.
 	let pos_mem_buffer = getPosMemBuffer(point_cloud, nb_particles);
 	pos_buffer_attr = new THREE.BufferAttribute(pos_mem_buffer, 3).setDynamic(true);
-	geometry.addAttribute("position", pos_buffer_attr);
-	let material = new THREE.PointsMaterial({size: 1, sizeAttenuation: false, color: 0xffffff});
-	let particles = new THREE.Points(geometry, material);
-	particles.frustumCulled = false;
-	scene.add(particles);
+	scene.add(create_particles(geometry, pos_buffer_attr, 1, 0xffffff));
 
 	// Add a second point cloud for current frame.
-	current_geometry.addAttribute("position", pos_buffer_attr);
-	let current_material = new THREE.PointsMaterial({size: 4, sizeAttenuation: false, color: 0xff0000});
-	let current_particles = new THREE.Points(current_geometry, current_material);
-	current_particles.frustumCulled = false;
-	scene.add(current_particles);
+	scene.add(create_particles(current_geometry, pos_buffer_attr, 4, 0xff0000));
+
+	// Add point clouds for P3P potential initializations.
+	scene.add(create_particles(p3p_point_cloud_1, pos_buffer_attr, 4, 0xFFE546));
+	scene.add(create_particles(p3p_point_cloud_2, pos_buffer_attr, 4, 0x9FD74B));
+	scene.add(create_particles(p3p_point_cloud_3, pos_buffer_attr, 4, 0x38BB76));
+	scene.add(create_particles(p3p_point_cloud_4, pos_buffer_attr, 4, 0x1D838C));
 
 	// Bind camera path to THREE buffers.
 	let camera_pose_buffer = getCameraPoseBuffer();
@@ -100,8 +114,33 @@ async function load_wasm() {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.display = "block";
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
-	// controls.target = new THREE.Vector3(0, 0, 2);
+	controls.target = new THREE.Vector3(0, 0, 0.1);
+	controls.screenSpacePanning = true;
 	controls.update();
+}
+
+export function chooseP3pInitial(id, base_kf) {
+	let keyframe = wasm_tracker.choose_p3p_initial(id, base_kf);
+	last_tracked_frame -= 1;
+	end_valid = point_cloud.reset_kf(keyframe);
+	let force_keyframe = true;
+	track(force_keyframe);
+	let section = point_cloud.section(keyframe);
+	geometry.setDrawRange(0, end_valid / 3);
+	updateGeometry(section.start, section.end);
+	// Clear potential P3P poses.
+	p3p_point_cloud_1.setDrawRange(0, 0);
+	p3p_point_cloud_2.setDrawRange(0, 0);
+	p3p_point_cloud_3.setDrawRange(0, 0);
+	p3p_point_cloud_4.setDrawRange(0, 0);
+}
+
+function create_particles(geom, buffer, size, color) {
+	geom.addAttribute("position", buffer);
+	let material = new THREE.PointsMaterial({size: size, sizeAttenuation: false, color: color});
+	let particles = new THREE.Points(geom, material);
+	particles.frustumCulled = false;
+	return particles;
 }
 
 export function pickReference(index) {
@@ -124,16 +163,35 @@ export function restartFromKeyframe(baseKf, keyframe) {
 	track(force_keyframe);
 }
 
-export function restartFromKeyframeP3p(baseKf, keyframe, p3p_ref_points, p3p_key_points) {
+// export function restartFromKeyframeP3p(baseKf, keyframe, p3p_ref_points, p3p_key_points) {
+// 	assert(baseKf < keyframe, "Base keyframe >= restart keyframe");
+// 	end_valid = point_cloud.reset_kf(keyframe);
+// 	last_tracked_frame = camera_path.reset_kf(keyframe);
+// 	let base_frame = camera_path.index_kf(baseKf);
+// 	wasm_tracker.reset_at_p3p(base_frame, last_tracked_frame, keyframe, p3p_ref_points, p3p_key_points);
+// 	geometry.setDrawRange(0, end_valid / 3);
+// 	camera_path_geometry.setDrawRange(0, last_tracked_frame);
+// 	let force_keyframe = true;
+// 	track(force_keyframe);
+// }
+
+export function p3pVisualize(baseKf, keyframe, p3p_ref_points, p3p_key_points) {
 	assert(baseKf < keyframe, "Base keyframe >= restart keyframe");
-	end_valid = point_cloud.reset_kf(keyframe);
-	last_tracked_frame = camera_path.reset_kf(keyframe);
 	let base_frame = camera_path.index_kf(baseKf);
-	wasm_tracker.reset_at_p3p(base_frame, last_tracked_frame, keyframe, p3p_ref_points, p3p_key_points);
-	geometry.setDrawRange(0, end_valid / 3);
-	camera_path_geometry.setDrawRange(0, last_tracked_frame);
-	let force_keyframe = true;
-	track(force_keyframe);
+	let probabilities = wasm_tracker.p3p_visualize(base_frame, last_tracked_frame, p3p_ref_points, p3p_key_points, point_cloud);
+	let nb_p3p = probabilities.length - 1;
+	// Update geometry draw range.
+	if (nb_p3p >= 1) { updateDrawRange(p3p_point_cloud_1, point_cloud.section(keyframe + 1)); }
+	if (nb_p3p >= 2) { updateDrawRange(p3p_point_cloud_2, point_cloud.section(keyframe + 2)); }
+	if (nb_p3p >= 3) { updateDrawRange(p3p_point_cloud_3, point_cloud.section(keyframe + 3)); }
+	if (nb_p3p >= 4) { updateDrawRange(p3p_point_cloud_4, point_cloud.section(keyframe + 4)); }
+	// Transfer geometry to GPU.
+	if (nb_p3p > 0) {
+		let first_section = point_cloud.section(keyframe + 1);
+		let last_section = point_cloud.section(keyframe + nb_p3p);
+		updateGeometry(first_section.start, last_section.end);
+	}
+	return probabilities;
 }
 
 function assert(condition, message) {
@@ -161,12 +219,11 @@ function updateCurrentCameraPoseKf(frame) {
 	current_camera_path_geometry.setDrawRange(index, 1);
 }
 
-function updateCurrentPointCloud(frame) {
-	let section = point_cloud.section(frame);
+function updateDrawRange(geom, section) {
 	let start = section.start / 3;
 	let end = section.end / 3;
 	let nb_points = end - start;
-	current_geometry.setDrawRange(start, nb_points);
+	geom.setDrawRange(start, nb_points);
 }
 
 function renderLoop() {
@@ -289,7 +346,7 @@ class Renderer extends HTMLElement {
 				// if (oldValue == null) break; // Do not trigger at initialization.
 				if (newValue === oldValue) break; // Do not accidentally trigger.
 				console.log(`current from ${oldValue} to ${newValue}`);
-				updateCurrentPointCloud(+newValue);
+				updateDrawRange(current_geometry, point_cloud.section(+newValue));
 				updateCurrentCameraPoseKf(+newValue);
 				if (oldValue == null) break;
 				updateCurrentKfImage(+newValue);

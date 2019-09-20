@@ -28,13 +28,19 @@ export function activatePorts(app, containerSize) {
 		Renderer.restartFromKeyframe(baseKf, keyframe);
 	});
 	
-	app.ports.restartFromP3p.subscribe( data => {
-		Renderer.restartFromKeyframeP3p(
+	app.ports.p3pVisualize.subscribe( data => {
+		let probabilities = Renderer.p3pVisualize(
 			data.reference,
 			data.restartFrom,
 			data.p3pRef,
 			data.p3pKey,
 		);
+		// Send probabilities to the elm app.
+		app.ports.p3pProbabilities.send(probabilities);
+	});
+
+	app.ports.chooseP3pInitial.subscribe( ({id: id, base_kf: base_kf}) => {
+		Renderer.chooseP3pInitial(id, base_kf);
 	});
 
 	app.ports.exportObj.subscribe( () => {

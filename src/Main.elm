@@ -41,6 +41,7 @@ type Fixer
     | ReferenceKeyframe Int
     | KeyframesPair Int Int
     | InteractiveFix Int Int (List PointFix) (List PointFix)
+    | InitializationSelector Int (List Float)
 
 
 type alias PointFix =
@@ -91,6 +92,8 @@ type Msg
     | ToggleInteractiveFix
     | ClickRef ( Float, Float )
     | ClickKey ( Float, Float )
+    | P3pProbabilities (List Float)
+    | ChooseInitial Int
     | ExportObj
 
 
@@ -141,16 +144,15 @@ update msg model =
             , Ports.restartFrom { reference = baseKf, restartFrom = keyframe }
             )
 
-        ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (InteractiveFix _ _ refPoints keyPoints) ) ->
-            ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
-            , Ports.restartFromP3p
-                { reference = baseKf
-                , restartFrom = keyframe
-                , p3pRef = Debug.log "ref" (List.map .pos refPoints)
-                , p3pKey = List.map .pos keyPoints
-                }
-            )
-
+        -- ( RestartFrom baseKf keyframe, DatasetLoaded device nb_frames _ play fps (InteractiveFix _ _ refPoints keyPoints) ) ->
+        --     ( DatasetLoaded device nb_frames (sliderRestart keyframe) play fps (KeyframesPair baseKf keyframe)
+        --     , Ports.restartFromP3p
+        --         { reference = baseKf
+        --         , restartFrom = keyframe
+        --         , p3pRef = Debug.log "ref" (List.map .pos refPoints)
+        --         , p3pKey = List.map .pos keyPoints
+        --         }
+        --     )
         ( ToggleInteractiveFix, DatasetLoaded device nb_frames slid play fps (KeyframesPair k1 k2) ) ->
             ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 [] [])
             , Cmd.none
@@ -162,13 +164,59 @@ update msg model =
             )
 
         ( ClickRef pos, DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 ref key) ) ->
-            ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 (updatePoints pos ref) key)
-            , Cmd.none
+            let
+                newRefPoints =
+                    updatePoints pos ref
+
+                ( newFixer, cmd ) =
+                    if List.length newRefPoints + List.length key == 6 then
+                        ( InitializationSelector k1 []
+                        , Ports.p3pVisualize
+                            { reference = k1
+                            , restartFrom = k2
+                            , p3pRef = Debug.log "ref" (List.map .pos newRefPoints)
+                            , p3pKey = List.map .pos key
+                            }
+                        )
+
+                    else
+                        ( InteractiveFix k1 k2 newRefPoints key, Cmd.none )
+            in
+            ( DatasetLoaded device nb_frames slid play fps newFixer
+            , cmd
             )
 
         ( ClickKey pos, DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 ref key) ) ->
-            ( DatasetLoaded device nb_frames slid play fps (InteractiveFix k1 k2 ref (updatePoints pos key))
+            let
+                newKeyPoints =
+                    updatePoints pos key
+
+                ( newFixer, cmd ) =
+                    if List.length ref + List.length newKeyPoints == 6 then
+                        ( InitializationSelector k1 []
+                        , Ports.p3pVisualize
+                            { reference = k1
+                            , restartFrom = k2
+                            , p3pRef = Debug.log "ref" (List.map .pos ref)
+                            , p3pKey = List.map .pos newKeyPoints
+                            }
+                        )
+
+                    else
+                        ( InteractiveFix k1 k2 ref newKeyPoints, Cmd.none )
+            in
+            ( DatasetLoaded device nb_frames slid play fps newFixer
+            , cmd
+            )
+
+        ( P3pProbabilities probabilities, DatasetLoaded device nb_frames slid play fps (InitializationSelector k1 _) ) ->
+            ( DatasetLoaded device nb_frames slid play fps (InitializationSelector k1 probabilities)
             , Cmd.none
+            )
+
+        ( ChooseInitial id, DatasetLoaded device nb_frames slid _ fps (InitializationSelector baseKf _) ) ->
+            ( DatasetLoaded device nb_frames slid False fps NoFix
+            , Ports.chooseP3pInitial { id = id, base_kf = baseKf }
             )
 
         ( ExportObj, DatasetLoaded _ _ _ _ _ _ ) ->
@@ -212,6 +260,25 @@ viridis id =
 
         _ ->
             Element.rgba255 145 214 81 0.8
+
+
+viridisLight : Int -> Element.Color
+viridisLight id =
+    case id of
+        0 ->
+            Element.rgb255 255 0 0
+
+        1 ->
+            Element.rgb255 255 229 70
+
+        2 ->
+            Element.rgb255 159 215 75
+
+        3 ->
+            Element.rgb255 56 187 118
+
+        _ ->
+            Element.rgb255 29 131 140
 
 
 sliderRestart : Int -> Slider
@@ -288,6 +355,7 @@ subscriptions state =
                 [ Ports.resizes WindowResizes
                 , Ports.animationFrame Track
                 , Ports.newKeyFrame NewKeyFrame
+                , Ports.p3pProbabilities P3pProbabilities
                 ]
 
 
@@ -356,6 +424,11 @@ renderer size nb_frames s fixer =
                 InteractiveFix _ _ refPoints kfPoints ->
                     ( interactiveKeyframeCanvas "block" kfPoints
                     , interactiveReferenceCanvas "block" "block" refPoints
+                    )
+
+                InitializationSelector _ probabilities ->
+                    ( interactiveKeyframeCanvas "none" []
+                    , interactiveReferenceCanvas "none" "none" []
                     )
     in
     Element.Keyed.el
@@ -479,26 +552,54 @@ bottomToolbar slid play fps fixer =
         ]
 
 
-fixerHelper : Fixer -> Element msg
+fixerHelper : Fixer -> Element Msg
 fixerHelper fixer =
     case fixer of
-        InteractiveFix _ _ ref key ->
-            fixerHelperText (List.length ref) (List.length key)
+        InteractiveFix _ _ _ _ ->
+            fixerHelperText
+
+        InitializationSelector _ probabilities ->
+            initializationSelectorView probabilities
 
         _ ->
             Element.none
 
 
-fixerHelperText : Int -> Int -> Element msg
-fixerHelperText nbRefPoints nbKeyPoints =
-    let
-        textContent =
-            if nbRefPoints == 3 && nbKeyPoints == 3 then
-                "Now try again clicking on the 'Restart from current frame' button."
+initializationSelectorView : List Float -> Element Msg
+initializationSelectorView probabilities =
+    Element.column
+        [ Element.alignRight
+        , Element.padding 10
+        , Element.spacing 10
+        , Element.clip
+        , Element.Font.size 20
+        , Element.Font.color (Element.rgb 1 1 1)
+        , Background.color (Element.rgba255 0 0 0 0.8)
+        ]
+        (List.indexedMap probaToChoice probabilities)
 
-            else
-                "Pick 3 corresponding points on each image."
-    in
+
+probaToChoice : Int -> Float -> Element Msg
+probaToChoice id proba =
+    coloredChoice (viridisLight id)
+        (String.fromInt (round (100 * proba)) ++ " %")
+        (ChooseInitial id)
+
+
+coloredChoice : Element.Color -> String -> Msg -> Element Msg
+coloredChoice color text msg =
+    Element.row
+        [ Element.pointer
+        , Element.Events.onClick msg
+        , Element.spacing 20
+        ]
+        [ Element.el [ height fill, width (px 20), Background.color color ] Element.none
+        , Element.text text
+        ]
+
+
+fixerHelperText : Element msg
+fixerHelperText =
     el
         [ Element.alignRight
         , Background.color (Element.rgba255 255 255 255 0.8)
@@ -506,7 +607,7 @@ fixerHelperText nbRefPoints nbKeyPoints =
         , Element.clip
         , Element.Font.size 20
         ]
-        (Element.text textContent)
+        (Element.text "Pick 3 corresponding points on each image.")
 
 
 fpsViewer : Int -> Element msg
@@ -590,6 +691,9 @@ interactiveFixButton fixer =
         InteractiveFix _ _ _ _ ->
             activeButton ToggleInteractiveFix "Pick points to fix camera pose" (Icon.toHtml 30 Icon.edit)
 
+        InitializationSelector _ _ ->
+            disabledButton "Pick points to fix camera pose" (Icon.toHtml 30 Icon.edit)
+
 
 activeButton : msg -> String -> Html msg -> Element msg
 activeButton msg title icon =
@@ -641,6 +745,9 @@ slider fixer s =
 
                 InteractiveFix kf _ _ _ ->
                     fixerMarkeElement kf s.max
+
+                InitializationSelector _ _ ->
+                    Element.none
     in
     Input.slider
         [ height fill
