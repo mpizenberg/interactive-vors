@@ -113,8 +113,8 @@ async function load_wasm() {
 
 export function chooseP3pInitial(id, base_kf) {
 	let keyframe = wasm_tracker.choose_p3p_initial(id, base_kf);
-	last_tracked_frame -= 1;
 	end_valid = point_cloud.reset_kf(keyframe);
+	last_tracked_frame = camera_path.reset_kf(keyframe);
 	let force_keyframe = true;
 	track(force_keyframe);
 	let section = point_cloud.section(keyframe);
