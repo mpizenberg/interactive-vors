@@ -95,18 +95,10 @@ async function load_wasm() {
 	// Bind camera path to THREE buffers.
 	let camera_pose_buffer = getCameraPoseBuffer();
 	camera_pose_attr = new THREE.BufferAttribute(camera_pose_buffer, 3).setDynamic(true);
-	camera_path_geometry.addAttribute('position', camera_pose_attr);
-	let camera_path_material = new THREE.PointsMaterial({color: 0xAA77DD, size: 2, sizeAttenuation: false});
-	let line = new THREE.Points(camera_path_geometry, camera_path_material);
-	line.frustumCulled = false;
-	scene.add(line);
+	scene.add(create_particles(camera_path_geometry, camera_pose_attr, 2, 0xAA77DD));
 
 	// Add a geometry for the current keyframe camera.
-	current_camera_path_geometry.addAttribute('position', camera_pose_attr);
-	let current_camera_path_material = new THREE.PointsMaterial({color: 0xFF0000, size: 10, sizeAttenuation: false});
-	let current_line = new THREE.Points(current_camera_path_geometry, current_camera_path_material);
-	current_line.frustumCulled = false;
-	scene.add(current_line);
+	scene.add(create_particles(current_camera_path_geometry, camera_pose_attr, 10, 0xFF0000));
 
 	// Setup the renderer.
 	renderer = new THREE.WebGLRenderer();
