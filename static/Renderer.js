@@ -202,6 +202,10 @@ function getCameraPoseBuffer() {
 	return new Float32Array(wasm.memory.buffer, camera_path.poses(), 3 * camera_path_nb_frames);
 }
 
+export function exportCameraPoses() {
+	return new Float32Array(wasm.memory.buffer, camera_path.poses(), 3 * 2000);
+}
+
 export function getPosMemBuffer(point_cloud, nb_particles) {
 	return new Float32Array(wasm.memory.buffer, point_cloud.points(), 3 * nb_particles);
 }

@@ -44,13 +44,18 @@ export function activatePorts(app, containerSize) {
 	});
 
 	app.ports.exportObj.subscribe( () => {
-		let obj_vec = [];
-		let pos_buffer = Renderer.getPosMemBuffer(Renderer.point_cloud, Renderer.nb_particles);
-		for (let i = 0; i < Renderer.end_valid; i += 3) {
-			obj_vec.push(`v ${pos_buffer[i]} ${pos_buffer[i+1]} ${pos_buffer[i+2]}`);
+		// let obj_vec = [];
+		// let pos_buffer = Renderer.getPosMemBuffer(Renderer.point_cloud, Renderer.nb_particles);
+		// for (let i = 0; i < Renderer.end_valid; i += 3) {
+		// 	obj_vec.push(`v ${pos_buffer[i]} ${pos_buffer[i+1]} ${pos_buffer[i+2]}`);
+		// }
+		let camera_pos_vec = [];
+		let pos_buffer = Renderer.exportCameraPoses();
+		for (let i = 0; i < pos_buffer.length; i += 3) {
+			camera_pos_vec.push(`${Math.round(i/3)} ${pos_buffer[i]} ${pos_buffer[i+1]} ${pos_buffer[i+2]} 0 0 0 1`);
 		}
-		let obj = obj_vec.join('\n');
-		download('point_cloud.obj', obj);
+		let camera_path = camera_pos_vec.join('\n');
+		download('camera_path.txt', camera_path);
 	});
 	
 	// Set up file reader.
