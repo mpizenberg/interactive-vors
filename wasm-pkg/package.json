@@ -1,0 +1,15 @@
+{
+  "name": "wasm-vors",
+  "collaborators": [
+    "Matthieu Pizenberg <matthieu.pizenberg@gmail.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "wasm_vors_bg.wasm",
+    "wasm_vors.js",
+    "wasm_vors.d.ts"
+  ],
+  "module": "wasm_vors.js",
+  "types": "wasm_vors.d.ts",
+  "sideEffects": "false"
+}
