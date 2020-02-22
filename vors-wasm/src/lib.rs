@@ -13,7 +13,7 @@ use tar;
 
 use visual_odometry_rs as vors;
 use vors::core::camera::Intrinsics;
-use vors::core::track::inverse_compositional as track;
+use vors::core::track::inverse_compositional_norm as track;
 use vors::dataset::tum_rgbd;
 use vors::misc::interop;
 use vors::misc::type_aliases::{Iso3, Point2};
